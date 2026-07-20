@@ -235,6 +235,46 @@ class RotatingLLMClient:
             if last_error and not is_rate_limit_error(last_error):
                 continue
 
+    def complete_json_with_mcp_tools(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tool_names: list[str],
+        role: str,
+        max_tool_rounds: int = 4,
+    ) -> dict[str, Any]:
+        last_error: BaseException | None = None
+        while True:
+            index = self._select_key()
+            state = self._key_state(index)
+            try:
+                print(json.dumps({"event": "llm_mcp_call_start", "key_index": index + 1, "tool_names": tool_names, "time": utc_now_iso()}, ensure_ascii=False), flush=True)
+                payload = self.clients[index].complete_json_with_mcp_tools(messages, tool_names=tool_names, role=role, max_tool_rounds=max_tool_rounds)
+                now = time.time()
+                state["success_count"] = int(state.get("success_count", 0)) + 1
+                state["last_used_ts"] = now
+                state["next_available_ts"] = now + self.cooldown_sec
+                self._save_state()
+                return payload
+            except Exception as exc:  # noqa: BLE001 - this is a long-running resiliency boundary.
+                now = time.time()
+                last_error = exc
+                state["last_error"] = str(exc)[:500]
+                state["last_error_at"] = utc_now_iso()
+                if is_rate_limit_error(exc):
+                    state["rate_limit_count"] = int(state.get("rate_limit_count", 0)) + 1
+                    state["next_available_ts"] = now + self.rate_limit_backoff_sec
+                    print(json.dumps({"event": "llm_mcp_rate_limited", "key_index": index + 1, "sleep_key_sec": self.rate_limit_backoff_sec, "time": utc_now_iso()}, ensure_ascii=False), flush=True)
+                else:
+                    state["error_count"] = int(state.get("error_count", 0)) + 1
+                    state["next_available_ts"] = now + min(self.cooldown_sec, 300)
+                    print(json.dumps({"event": "llm_mcp_error", "key_index": index + 1, "error": str(exc)[:240], "time": utc_now_iso()}, ensure_ascii=False), flush=True)
+                self._save_state()
+                if not any(float(self._key_state(i).get("next_available_ts", 0.0)) <= time.time() for i in range(len(self.clients))):
+                    continue
+            if last_error and not is_rate_limit_error(last_error):
+                continue
+
 
 def build_rotating_client(output_dir: Path, *, cooldown_sec: int, rate_limit_backoff_sec: int) -> RotatingLLMClient:
     config = load_project_config().llm

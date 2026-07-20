@@ -41,10 +41,40 @@ rolling_sum
 abs
 clip
 log1p
+log
+tanh
+sign
 rank
+max
+min
+gt
+lt
+ge
+le
+eq
+neq
+and
+or
+where
+diff
+shift
+pct_change
+ewm_mean
+ewm_std
+rolling_min
+rolling_max
+rolling_median
+rolling_rank
+rolling_count
+rolling_corr
+rolling_cov
+rolling_beta
+div_mean
+div_std
+vol_scale
 ```
 
-Do not output aliases such as `mult`, `sum`, `SafeDiv`, `RollingMean`, `cond`, `ifelse`, `where`, `gt`, `maximum`, `minimum`, `ewm_mean`, `ewm_std`, `diff`, `corr`, or `beta` unless the prompt explicitly says those ops are now supported.
+Do not output aliases such as `mult`, `sum`, `SafeDiv`, `RollingMean`, `cond`, `ifelse`, `maximum`, `minimum`, `corr`, or `beta`. Use the exact supported lowercase op names.
 
 Do not output free-form expression strings that require unsupported renderer AST calls. The renderer rebuilds from `prefix_expression`, so the safe path is to make `prefix_expression` valid and derive everything else from it.
 
@@ -52,7 +82,9 @@ Do not output free-form expression strings that require unsupported renderer AST
 
 - Binary ops: `add`, `sub`, `mul`, `div`, `safe_div` take exactly 2 arguments.
 - Unary ops: `neg`, `abs`, `log1p`, `rank` take exactly 1 argument.
-- Window ops: `zscore`, `rolling_mean`, `rolling_std`, `rolling_sum` take exactly `[x, window]`; `window` must be a number, not a quoted string.
+- Window ops: `zscore`, `rolling_mean`, `rolling_std`, `rolling_sum`, `rolling_min`, `rolling_max`, `rolling_median`, `rolling_rank`, `rolling_count`, `ewm_mean`, `ewm_std`, `diff`, `shift`, `pct_change`, and `vol_scale` take exactly `[x, window]`; `window` must be a number, not a quoted string.
+- Two-input window ops: `rolling_corr`, `rolling_cov`, `rolling_beta`, `div_mean`, and `div_std` take exactly `[x, y, window]`; `window` must be a number, not a quoted string.
+- Boolean/state ops: `gt`, `lt`, `ge`, `le`, `eq`, `neq`, `and`, `or` take exactly 2 arguments; `where` takes exactly `[condition, true_value, false_value]`.
 - `clip` takes exactly `[x, lower, upper]`; bounds must be numbers.
 
 ## Constants And Fields

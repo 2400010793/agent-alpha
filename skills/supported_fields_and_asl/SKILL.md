@@ -33,34 +33,47 @@ rolling_sum
 abs
 clip
 log1p
+log
+tanh
+sign
 rank
+max
+min
+gt
+lt
+ge
+le
+eq
+neq
+and
+or
+where
+diff
+shift
+pct_change
+ewm_mean
+ewm_std
+rolling_min
+rolling_max
+rolling_median
+rolling_rank
+rolling_count
+rolling_corr
+rolling_cov
+rolling_beta
+div_mean
+div_std
+vol_scale
 ```
 
 Unsupported unless explicitly added later:
 
 ```text
 cond
-where
 ifelse
-gt
-lt
-eq
-neq
-and
-or
 maximum
 minimum
-ewm_mean
-ewm_std
-diff
-shift
-rolling_corr
-rolling_rank
-rolling_median
 beta
-div_mean
-div_std
-vol_scale
 ```
 
 ## Safe Raw Fields

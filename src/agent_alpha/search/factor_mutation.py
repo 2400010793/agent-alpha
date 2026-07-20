@@ -89,6 +89,7 @@ def generate_factor_mutations(
     lineage_context: dict[str, Any] | None = None,
     memory_context: dict[str, Any] | None = None,
     max_mutations: int = 3,
+    use_mcp_tools: bool = True,
 ) -> list[dict[str, Any]]:
     registry = FieldRegistry.from_yaml()
     allowed_mutation_types = [mutation_focus] if mutation_focus in VALID_FACTOR_MUTATION_TYPES else sorted(VALID_FACTOR_MUTATION_TYPES)
@@ -125,7 +126,20 @@ def generate_factor_mutations(
             ),
         },
     ]
-    payload = client.complete_json(messages)
+    if use_mcp_tools and hasattr(client, "complete_json_with_mcp_tools"):
+        payload = client.complete_json_with_mcp_tools(
+            messages,
+            tool_names=[
+                "specialist_memory.search",
+                "function_memory.search",
+                "transfer_memory.search",
+                "factor.validate_candidate",
+                "factor.render_and_compile_candidate",
+            ],
+            role="The Implementer",
+        )
+    else:
+        payload = client.complete_json(messages)
     if _contains_python(payload):
         raise RuntimeError("LLM factor mutation response must not contain Python code or compute_factor")
     raw_mutations = _as_list(payload.get("mutations"))[:max_mutations]

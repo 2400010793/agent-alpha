@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from agent_alpha.mcp_tools.permission_guard import allowed_tools_for_role
+from agent_alpha.mcp_tools.tool_specs import mcp_tool_spec
 from agent_alpha.mcp_tools.tool_router import call_tool
 from agent_alpha.memory.function_memory import append_function_memory
 from agent_alpha.memory.specialist_memory import append_specialist_memory
@@ -32,6 +33,17 @@ def test_permission_guard_includes_specialist_memory_and_controller_tools() -> N
     assert "transfer_memory.search" in implementer_tools
     assert "mutation_controller.select_plan" in implementer_tools
     assert "mutation_controller.select_plan" not in allowed_tools_for_role("The Evaluator")
+
+
+def test_mcp_tool_specs_include_precise_memory_parameters() -> None:
+    specialist = mcp_tool_spec("specialist_memory.search")["function"]
+    function_memory = mcp_tool_spec("function_memory.search")["function"]
+    controller = mcp_tool_spec("mutation_controller.select_plan")["function"]
+
+    assert "specialist mutation agent" in specialist["description"]
+    assert specialist["parameters"]["required"] == ["agent_name"]
+    assert "query" in function_memory["parameters"]["properties"]
+    assert controller["parameters"]["required"] == ["candidates"]
 
 
 def test_specialist_memory_search_tool_returns_envelope(tmp_path: Path) -> None:

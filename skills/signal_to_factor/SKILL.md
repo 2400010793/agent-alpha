@@ -14,9 +14,9 @@ Rules:
 - Output only a `FactorCandidate` object with `factor_id`, `name`, `prefix_expression`, `expression`, `fields`, `windows`, `direction`, `source_signal_id`, `source_reading_note_id`, and `mechanism_tags`.
 - Prefer `prefix_expression` in Agent Alpha Structured Language (ASL), because it is easier to validate and render safely.
 - Also include a readable `expression` string as a compatibility view of the same logic.
-- Allowed ASL ops are: `add`, `sub`, `mul`, `div`, `neg`, `safe_div`, `zscore`, `rolling_mean`, `rolling_std`, `rolling_sum`.
+- Allowed ASL ops are: `add`, `sub`, `mul`, `div`, `neg`, `safe_div`, `zscore`, `rolling_mean`, `rolling_std`, `rolling_sum`, `abs`, `clip`, `log1p`, `log`, `tanh`, `sign`, `rank`, `max`, `min`, `gt`, `lt`, `ge`, `le`, `eq`, `neq`, `and`, `or`, `where`, `diff`, `shift`, `pct_change`, `ewm_mean`, `ewm_std`, `rolling_min`, `rolling_max`, `rolling_median`, `rolling_rank`, `rolling_count`, `rolling_corr`, `rolling_cov`, `rolling_beta`, `div_mean`, `div_std`, and `vol_scale`.
 - Example ASL: `["safe_div", ["sub", "bidV1", "askV1"], ["add", "bidV1", "askV1"]]`.
-- The expression string, when present, must use the small DSL accepted by `src/agent_alpha/factors/fac_eval_renderer.py`, such as `safe_div(a, b)`, `rolling_mean(x, 120)`, `rolling_std(x, 60)`, and `zscore(x, 60)`.
+- The expression string, when present, must be a readable view derived from `prefix_expression`. It is not authoritative; the controlled renderer rebuilds from `prefix_expression`.
 - The controlled renderer is responsible for producing the fac-eval file with module variable `fields` and function `compute_factor(code, date, df)`.
 
 Pipeline boundary:

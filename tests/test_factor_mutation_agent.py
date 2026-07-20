@@ -25,6 +25,19 @@ class FakeFactorMutationClient:
         return self.payload
 
 
+class FakeMcpFactorMutationClient(FakeFactorMutationClient):
+    def __init__(self, payload: dict[str, Any]) -> None:
+        super().__init__(payload)
+        self.tool_names: list[str] = []
+        self.tool_role = ""
+
+    def complete_json_with_mcp_tools(self, messages: list[dict[str, Any]], *, tool_names: list[str], role: str, max_tool_rounds: int = 4) -> dict[str, Any]:
+        self.messages = messages
+        self.tool_names = tool_names
+        self.tool_role = role
+        return self.payload
+
+
 def _parent_candidate() -> dict[str, Any]:
     return {
         "factor_id": "volume_pressure",
@@ -103,6 +116,18 @@ def test_factor_mutation_agent_outputs_valid_factor_candidate() -> None:
     assert "supported_fields_and_asl" in client.messages[1]["content"]
     assert "Renderer Boundary" in client.messages[1]["content"]
     assert "Safe Raw Fields" in client.messages[1]["content"]
+
+
+def test_factor_mutation_agent_uses_mcp_tools_when_available() -> None:
+    client = FakeMcpFactorMutationClient(_mutation_payload())
+
+    mutations = generate_factor_mutations(_parent_candidate(), client, exploration_direction="price confirmation")
+
+    assert len(mutations) == 1
+    assert client.tool_role == "The Implementer"
+    assert "specialist_memory.search" in client.tool_names
+    assert "function_memory.search" in client.tool_names
+    assert "factor.render_and_compile_candidate" in client.tool_names
 
 
 def test_factor_mutation_agent_coerces_numeric_string_literals() -> None:

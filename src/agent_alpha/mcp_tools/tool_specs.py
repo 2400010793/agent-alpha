@@ -11,7 +11,91 @@ DESCRIPTIONS = {
     "factor.render_and_compile_candidate": "Validate, render, and py_compile a FactorCandidate JSON object.",
     "factor.render_fac_eval_file": "Render a validated FactorCandidate to a fac-eval-compatible Python file.",
     "factor.write_fac_eval_config": "Write a fac-eval-demo compatible YAML config for rendered factor files.",
+    "research_memory.search_chunks": "Search ingested document chunks by keyword query.",
+    "factor_registry.search_factors": "Search stored factor candidate metadata by keyword query.",
+    "evaluation_memory.get_good_bad_memory": "Search GOOD/BAD/REVISE feedback memory by keyword query.",
+    "specialist_memory.search": "Search compact memory for one specialist mutation agent.",
+    "function_memory.search": "Search compact memory about ASL ops, fields, windows, and failure or repair rules.",
+    "transfer_memory.search": "Search compact memory about parent-to-child mutation transitions.",
     "mutation_controller.select_plan": "Select one mutation parent and specialist agent without calling an LLM.",
+}
+
+
+PARAMETERS = {
+    "market_data.list_fields": {"type": "object", "additionalProperties": False, "properties": {}},
+    "market_data.validate_factor_fields": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["expression"],
+        "properties": {"expression": {"type": "string"}},
+    },
+    "factor.validate_candidate": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["candidate"],
+        "properties": {"candidate": {"type": "object", "additionalProperties": True}},
+    },
+    "factor.render_and_compile_candidate": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["candidate"],
+        "properties": {"candidate": {"type": "object", "additionalProperties": True}, "output_dir": {"type": "string"}},
+    },
+    "factor.render_fac_eval_file": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["candidate"],
+        "properties": {"candidate": {"type": "object", "additionalProperties": True}, "output_dir": {"type": "string"}},
+    },
+    "factor.write_fac_eval_config": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["factor_files"],
+        "properties": {"factor_files": {"type": "array", "items": {"type": "string"}}, "output_path": {"type": "string"}},
+    },
+    "research_memory.search_chunks": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"path": {"type": "string"}, "query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+    },
+    "factor_registry.search_factors": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"path": {"type": "string"}, "query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+    },
+    "evaluation_memory.get_good_bad_memory": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"path": {"type": "string"}, "query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+    },
+    "specialist_memory.search": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["agent_name"],
+        "properties": {"agent_name": {"type": "string"}, "query": {"type": "string"}, "root": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+    },
+    "function_memory.search": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"path": {"type": "string"}, "query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+    },
+    "transfer_memory.search": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"path": {"type": "string"}, "query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+    },
+    "mutation_controller.select_plan": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["candidates"],
+        "properties": {
+            "candidates": {"type": "array", "items": {"type": "object", "additionalProperties": True}},
+            "feedback_records": {"type": "array", "items": {"type": "object", "additionalProperties": True}},
+            "memory_context": {"type": "object", "additionalProperties": True},
+            "lineage_states": {"type": "object", "additionalProperties": True},
+            "arm_memory": {"type": "object", "additionalProperties": True},
+        },
+    },
 }
 
 
@@ -30,11 +114,7 @@ def mcp_tool_spec(tool_name: str) -> dict:
         "function": {
             "name": encode_tool_name(tool_name),
             "description": DESCRIPTIONS.get(tool_name, f"Call Agent Alpha MCP tool {tool_name}."),
-            "parameters": {
-                "type": "object",
-                "description": "Tool query object. Pass exactly the fields required by the tool.",
-                "additionalProperties": True,
-            },
+            "parameters": PARAMETERS.get(tool_name, {"type": "object", "description": "Tool query object. Pass exactly the fields required by the tool.", "additionalProperties": True}),
         },
     }
 

@@ -32,6 +32,7 @@ def generate_factor_candidates_with_llm(
     max_candidates: int = 2,
     feedback_memory_path: str | Path | None = None,
     strict: bool = True,
+    use_mcp_tools: bool = True,
 ) -> list[dict[str, Any]]:
     """Use the LLM Implementer to produce FactorCandidate JSON, not Python code."""
     registry = FieldRegistry.from_yaml()
@@ -77,7 +78,20 @@ def generate_factor_candidates_with_llm(
             ),
         },
     ]
-    payload = client.complete_json(messages)
+    if use_mcp_tools and hasattr(client, "complete_json_with_mcp_tools"):
+        payload = client.complete_json_with_mcp_tools(
+            messages,
+            tool_names=[
+                "market_data.list_fields",
+                "evaluation_memory.get_good_bad_memory",
+                "function_memory.search",
+                "factor.validate_candidate",
+                "factor.render_and_compile_candidate",
+            ],
+            role="The Implementer",
+        )
+    else:
+        payload = client.complete_json(messages)
     if _contains_python_code(payload):
         raise RuntimeError("LLM factor response must not contain Python code or compute_factor")
     raw_candidates = payload.get("factor_candidates", [])

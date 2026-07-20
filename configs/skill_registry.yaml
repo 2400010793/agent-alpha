@@ -10,6 +10,21 @@ skills:
     role: The Implementer
     input_schema: alpha_signal_v1
     output_schema: factor_candidate_v1
+  - name: factor_candidate_format_checker
+    path: skills/factor_candidate_format_checker/SKILL.md
+    role: The Implementer
+    input_schema: factor_candidate_v1
+    output_schema: factor_candidate_v1
+  - name: supported_fields_and_asl
+    path: skills/supported_fields_and_asl/SKILL.md
+    role: The Implementer
+    input_schema: field_registry + asl_prefix_expression
+    output_schema: factor_candidate_field_and_asl_guidance
+  - name: signal_format_checker
+    path: skills/signal_format_checker/SKILL.md
+    role: The Idea Person
+    input_schema: alpha_signal_v1
+    output_schema: alpha_signal_v1
   - name: factor_evaluation
     path: skills/factor_evaluation/SKILL.md
     role: The Evaluator
