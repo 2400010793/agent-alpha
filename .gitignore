@@ -1,0 +1,29 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments and secrets
+.env
+.env.*
+*.key
+*.pem
+*.token
+secrets.*
+
+# Generated artifacts and experiment outputs
+outputs/
+data/
+$tmpdir/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Editor and OS noise
+.DS_Store
+.vscode/

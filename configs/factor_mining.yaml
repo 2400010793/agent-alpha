@@ -1,0 +1,14 @@
+schema_version: factor_mining_v1
+default_expression_templates:
+  order_book_pressure: zscore(depth_imbalance_l1)
+  depute_imbalance: zscore(safe_div(totalDeputeBuy - totalDeputeSell, totalDeputeBuy + totalDeputeSell))
+  trade_impact: zscore(volume_shock_20_120)
+  price_volume_divergence: zscore(price_volume_divergence)
+  spread_liquidity: zscore(spread_l1)
+  short_reversal: zscore(-mid_log_return_1tick)
+  short_momentum: zscore(mid_log_return_1tick)
+  volatility_burst: zscore(volatility_burst_20_120)
+  book_shape: zscore(book_imbalance_l10)
+  trading_rhythm: zscore(activity_surge_20_120)
+default_output_dir: data/factors
+default_factor_prefix: alpha_hf

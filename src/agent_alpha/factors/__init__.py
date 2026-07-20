@@ -1,0 +1,1 @@
+"""Factor candidate, validation, and rendering skeleton."""

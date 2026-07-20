@@ -1,0 +1,6 @@
+schema_version: alpha_library_v1
+library_dir: outputs/alpha_library
+admission:
+  required_decision: accept
+  min_abs_rankic: 0.1
+  min_finite_ratio: 0.8

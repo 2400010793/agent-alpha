@@ -1,0 +1,56 @@
+schema_version: mcp_tools_v1
+tool_envelope:
+  required_fields: [request_id, tool_name, schema_version, query, results, source_ids, permissions, created_at]
+tools:
+  - name: market_data.list_fields
+    server: market_data_server
+    allowed_roles: [The Implementer, The Evaluator]
+    description: Return raw, derived, and label field metadata from field_registry.yaml.
+  - name: market_data.validate_factor_fields
+    server: market_data_server
+    allowed_roles: [The Implementer, The Evaluator]
+    description: Validate a candidate expression against field whitelist and label leakage rules.
+  - name: factor.validate_candidate
+    server: factor_registry_server
+    allowed_roles: [The Implementer, The Evaluator]
+    description: Validate and canonicalize a FactorCandidate using prefix_expression, field whitelist, labels, windows, and schema rules.
+  - name: factor.render_and_compile_candidate
+    server: factor_registry_server
+    allowed_roles: [The Implementer]
+    description: Validate, render, and py_compile a FactorCandidate using the controlled renderer before admission.
+  - name: factor.render_fac_eval_file
+    server: factor_registry_server
+    allowed_roles: [The Implementer]
+    description: Render an already validated FactorCandidate into a fac-eval-compatible Python file using the controlled renderer.
+  - name: factor.write_fac_eval_config
+    server: factor_registry_server
+    allowed_roles: [The Implementer, The Evaluator]
+    description: Write a fac-eval-demo compatible YAML config for rendered factor files.
+  - name: research_memory.search_chunks
+    server: research_memory_server
+    allowed_roles: [The Idea Person, The Evaluator]
+    description: Search document chunks by keyword.
+  - name: factor_registry.search_factors
+    server: factor_registry_server
+    allowed_roles: [The Implementer, The Evaluator]
+    description: Search stored factor candidate metadata.
+  - name: evaluation_memory.get_good_bad_memory
+    server: evaluation_memory_server
+    allowed_roles: [The Idea Person, The Implementer, The Evaluator]
+    description: Return GOOD/BAD feedback memory summaries.
+  - name: specialist_memory.search
+    server: evaluation_memory_server
+    allowed_roles: [The Implementer, The Evaluator]
+    description: Search compact Cog-style memory for one specialist mutation agent.
+  - name: function_memory.search
+    server: evaluation_memory_server
+    allowed_roles: [The Implementer, The Evaluator]
+    description: Search Cog-style function/operator memory for ASL ops, fields, windows, and failure or repair rules.
+  - name: transfer_memory.search
+    server: evaluation_memory_server
+    allowed_roles: [The Implementer, The Evaluator]
+    description: Search Cog-style mutation transfer memory for parent-to-child transitions by mutation type and mechanism.
+  - name: mutation_controller.select_plan
+    server: evaluation_memory_server
+    allowed_roles: [The Implementer]
+    description: Select one mutation parent and specialist agent using the rule-based MutationController without calling an LLM.

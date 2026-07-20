@@ -1,0 +1,27 @@
+schema_version: skill_registry_v1
+skills:
+  - name: paper_to_signal
+    path: skills/paper_to_signal/SKILL.md
+    role: The Idea Person
+    input_schema: reading_note_v1
+    output_schema: alpha_signal_v1
+  - name: signal_to_factor
+    path: skills/signal_to_factor/SKILL.md
+    role: The Implementer
+    input_schema: alpha_signal_v1
+    output_schema: factor_candidate_v1
+  - name: factor_evaluation
+    path: skills/factor_evaluation/SKILL.md
+    role: The Evaluator
+    input_schema: factor_candidate_v1 + fac_eval_result
+    output_schema: research_review_v1
+  - name: mutation_memory
+    path: skills/mutation_memory/SKILL.md
+    role: The Implementer
+    input_schema: memory_context
+    output_schema: mutation_memory_guidance
+  - name: memory_absorption
+    path: skills/memory_absorption/SKILL.md
+    role: Memory Absorber
+    input_schema: document_chunks
+    output_schema: rma_records

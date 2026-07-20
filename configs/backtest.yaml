@@ -1,0 +1,12 @@
+schema_version: fac_eval_backtest_v1
+fac_eval_project_dir: /home/gaozh/fac-eval-demo
+python: python
+trade_data_dir: /data/share/py-eval/trade_data
+output_dir: outputs/fac_eval
+dates: []
+codes: []
+horizons: [ret60s]
+quantiles: 5
+min_obs_per_day: 50
+save_factor_outputs: false
+factor_resample_freq: null

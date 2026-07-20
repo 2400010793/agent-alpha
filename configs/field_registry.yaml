@@ -1,0 +1,297 @@
+schema_version: hf_field_registry_v2
+description: >
+  High-frequency field registry for Agent Alpha. Raw fields are observed in
+  /data/share/py-eval/trade_data/{date}/{code}.parquet. Derived feature names
+  are whitelist candidates that can be computed later from raw tick/order-book
+  fields, but this registry does not implement their calculation.
+
+time_column: delay_time
+processing_time_column: processing_time
+date_column: date
+entity_columns:
+  - code
+  - ticker
+
+observed_sample:
+  path: /data/share/py-eval/trade_data/20250306/002938.parquet
+  rows: 17564
+  columns: 56
+  time_min: "2025-03-06 09:30:00.280413"
+  time_max: "2025-03-06 14:56:00.938603"
+  timestamp_note: Tick-level timestamps are microsecond resolution; repeated very small deltas appear in sorted delay_time.
+
+# Raw columns that can be read as current or historical inputs.
+# Forward return labels are intentionally excluded from this list.
+allowed_input_fields:
+  - code
+  - delay_time
+  - processing_time
+  - date
+  - close
+  - volume
+  - money
+  - totalDeputeBuy
+  - totalDeputeSell
+  - averageBuy
+  - averageSell
+  - last_close
+  - askP1
+  - askP2
+  - askP3
+  - askP4
+  - askP5
+  - askP6
+  - askP7
+  - askP8
+  - askP9
+  - askP10
+  - bidP1
+  - bidP2
+  - bidP3
+  - bidP4
+  - bidP5
+  - bidP6
+  - bidP7
+  - bidP8
+  - bidP9
+  - bidP10
+  - askV1
+  - askV2
+  - askV3
+  - askV4
+  - askV5
+  - askV6
+  - askV7
+  - askV8
+  - askV9
+  - askV10
+  - bidV1
+  - bidV2
+  - bidV3
+  - bidV4
+  - bidV5
+  - bidV6
+  - bidV7
+  - bidV8
+  - bidV9
+  - bidV10
+
+# Future labels available in the data for evaluation only. They must never be
+# used inside factor expressions.
+label_fields:
+  - ret10s
+  - ret30s
+  - ret60s
+  - ret120s
+
+# Candidate derived fields that are permitted as design targets because they
+# can be computed from allowed raw fields and past observations. Calculation
+# functions will be added later; this list is only a whitelist and vocabulary.
+derived_feature_fields:
+  # Price anchors and returns
+  - mid_price_l1
+  - weighted_mid_price_l1
+  - microprice_l1
+  - log_mid_price_l1
+  - mid_log_return_1tick
+  - close_return_1tick
+  - close_log_return_1tick
+  - open_to_now_return
+  - session_open_price
+  - online_vwap
+  - online_twap
+  - online_range
+  - online_range_position
+  - online_drawdown
+  - body_to_range_online
+
+  # Spread and execution friction
+  - spread_l1
+  - relative_spread_l1
+  - quoted_spread_l1
+  - spread_bps_l1
+  - spread_change_l1
+  - execution_friction_l1
+  - liquidity_cost_l1
+
+  # Depth and order-book imbalance
+  - bid_depth_l1
+  - bid_depth_l3
+  - bid_depth_l5
+  - bid_depth_l10
+  - ask_depth_l1
+  - ask_depth_l3
+  - ask_depth_l5
+  - ask_depth_l10
+  - total_depth_l1
+  - total_depth_l3
+  - total_depth_l5
+  - total_depth_l10
+  - depth_imbalance_l1
+  - depth_imbalance_l3
+  - depth_imbalance_l5
+  - depth_imbalance_l10
+  - book_imbalance_l1
+  - book_imbalance_l3
+  - book_imbalance_l5
+  - book_imbalance_l10
+  - distance_decayed_lob_pressure_l5
+  - distance_decayed_lob_pressure_l10
+  - lob_vector_zdistance_l5
+  - lob_vector_zdistance_l10
+  - order_book_slope_bid_l10
+  - order_book_slope_ask_l10
+  - book_shape_convexity_bid_l10
+  - book_shape_convexity_ask_l10
+
+  # Queue/depth changes and replenishment proxies
+  - queue_change_bid_l1
+  - queue_change_bid_l5
+  - queue_change_bid_l10
+  - queue_change_ask_l1
+  - queue_change_ask_l5
+  - queue_change_ask_l10
+  - depth_replenishment_bid_l5
+  - depth_replenishment_bid_l10
+  - depth_replenishment_ask_l5
+  - depth_replenishment_ask_l10
+  - depth_depletion_bid_l5
+  - depth_depletion_bid_l10
+  - depth_depletion_ask_l5
+  - depth_depletion_ask_l10
+  - obi_change_l1
+  - obi_change_l5
+  - obi_change_l10
+
+  # Activity, flow, and notional proxies
+  - log_volume
+  - log_money
+  - volume_sum_20
+  - volume_sum_60
+  - volume_mean_120
+  - money_sum_20
+  - money_sum_60
+  - money_mean_120
+  - volume_shock_20_120
+  - money_shock_20_120
+  - activity_surge_20_120
+  - trade_event_intensity_20
+  - signed_volume_pressure_20
+  - signed_money_pressure_20
+  - notional_imbalance_20
+  - volume_weighted_mid_return_20
+  - money_weighted_mid_return_20
+
+  # Volatility, noise, and state features
+  - realized_vol_mid_20
+  - realized_vol_mid_60
+  - realized_vol_mid_120
+  - realized_vol_close_20
+  - realized_vol_close_60
+  - realized_vol_close_120
+  - volatility_burst_20_120
+  - microstructure_noise_trace_60
+  - vol_scaled_return_20_60
+
+  # Interaction proxies from proxy_variant_templates.yaml
+  - obi_return_pressure_20_l5
+  - spread_adjusted_return_20
+  - liquidity_cost_adjusted_flow_return_20
+  - adverse_selection_pressure_20
+  - inventory_book_pressure_20
+  - short_reversal_score_20
+  - short_momentum_score_20
+  - volume_volatility_state_20_60
+  - depth_spread_stress_l5
+  - spread_obi_slippage_risk_l5
+
+blocked_fields:
+  - industry
+  - sector
+  - sentiment
+  - news_score
+  - analyst_rating
+  - revenue
+  - earnings
+  - macro
+  - index_return
+  - benchmark_return
+  - fundamentals
+  - financial_statement
+  - analyst_forecast
+  - social_media
+  - news_event
+
+allowed_functions:
+  - abs
+  - clip
+  - corr
+  - cumsum
+  - decay_linear
+  - diff
+  - expanding_max
+  - expanding_min
+  - ewma
+  - log
+  - log1p
+  - max
+  - mean
+  - min
+  - pct_change
+  - rank
+  - rolling_beta
+  - rolling_corr
+  - rolling_cov
+  - rolling_max
+  - rolling_mean
+  - rolling_min
+  - rolling_rank
+  - rolling_std
+  - rolling_sum
+  - safe_div
+  - sign
+  - sqrt
+  - std
+  - tanh
+  - where
+  - zscore
+  # proxy_variant_templates helper names; formulas may mention these later, but
+  # this registry still does not implement them.
+  - _abs
+  - _ask_depth
+  - _bid_depth
+  - _book_imbalance
+  - _clip
+  - _coherence
+  - _cost_adjusted_score
+  - _cumsum
+  - _decayed_interaction
+  - _diff
+  - _ewm_integral
+  - _ewma
+  - _exp_decay
+  - _expanding_max
+  - _expanding_min
+  - _first
+  - _log
+  - _lob_pressure
+  - _lob_vector_zdistance
+  - _microstructure_noise_trace
+  - _mid_log_return
+  - _mid_price
+  - _no_trade_band_distance
+  - _num
+  - _path_ratio
+  - _rolling_beta
+  - _rolling_corr
+  - _rolling_cov
+  - _rolling_integral
+  - _rolling_mean
+  - _rolling_std
+  - _rolling_sum
+  - _safe_div
+  - _session_open
+  - _space_decay
+  - _spread
+  - _volume_weighted
+  - _zscore

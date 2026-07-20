@@ -1,0 +1,23 @@
+# LLM calls are configured from environment variables only.
+# Do not put API keys in this file.
+provider: github_models
+base_url_env: AGENT_ALPHA_LLM_BASE_URL
+fallback_base_url_env: PAPER_LLM_BASE_URL
+api_key_envs:
+  - AGENT_ALPHA_LLM_API_KEY1
+  - AGENT_ALPHA_LLM_API_KEY2
+  - AGENT_ALPHA_LLM_API_KEY3
+model_env: AGENT_ALPHA_LLM_MODEL
+fallback_model_env: PAPER_LLM_MODEL
+default_base_url: https://models.github.ai/inference
+default_model: openai/gpt-4o
+timeout_sec_env: AGENT_ALPHA_LLM_TIMEOUT_SEC
+fallback_timeout_sec_env: PAPER_LLM_TIMEOUT_SEC
+default_timeout_sec: 300
+retries_env: AGENT_ALPHA_LLM_RETRIES
+fallback_retries_env: PAPER_LLM_RETRIES
+default_retries: 2
+min_interval_sec_env: AGENT_ALPHA_LLM_MIN_INTERVAL_SEC
+fallback_min_interval_sec_env: PAPER_LLM_MIN_INTERVAL_SEC
+default_min_interval_sec: 10
+audit_log_dir: outputs/llm_audit

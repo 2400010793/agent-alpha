@@ -1,0 +1,1 @@
+"""MCP-style in-process tools."""

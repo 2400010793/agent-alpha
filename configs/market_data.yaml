@@ -1,0 +1,11 @@
+schema_version: hf_market_data_v1
+trade_data_dir: /data/share/py-eval/trade_data
+time_column: delay_time
+default_horizons:
+  - ret60s
+file_layout: date_code_parquet
+fac_eval_contract:
+  factor_function: compute_factor
+  factor_fields_variable: fields
+  input_time_column: delay_time
+  factor_file_output: pandas.DataFrame with one column per field

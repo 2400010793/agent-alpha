@@ -1,0 +1,27 @@
+schema_version: hf_quality_evaluation_v1
+min_abs_rankic: 0.1
+min_finite_ratio: 0.80
+max_zero_ratio: 0.95
+min_n_obs: 1000
+feedback_memory:
+  labels:
+    accept: GOOD
+    reject: BAD
+    revise: REVISE
+  tracked_metrics:
+    - daily_ic
+    - daily_rankic
+    - icir
+    - rankicir
+    - global_ic
+    - global_rankic
+    - qspread_mean
+    - finite_ratio
+    - zero_ratio
+    - n_obs
+    - n_dates
+required_checks:
+  - field_whitelist
+  - no_forward_label_in_expression
+  - economic_rationale_present
+  - fac_eval_contract

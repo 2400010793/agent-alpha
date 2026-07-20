@@ -1,0 +1,42 @@
+schema_version: hf_mechanism_taxonomy_v1
+mechanisms:
+  - id: order_book_pressure
+    name: 盘口压力
+    fields: [askP1, bidP1, askV1, bidV1]
+    prompt: prompts/hf_mechanism_agents/agent_order_book_pressure.md
+  - id: depute_imbalance
+    name: 委托失衡
+    fields: [totalDeputeBuy, totalDeputeSell, averageBuy, averageSell]
+    prompt: prompts/hf_mechanism_agents/agent_depute_imbalance.md
+  - id: trade_impact
+    name: 成交冲击
+    fields: [volume, money, ret10s, ret30s, ret60s]
+    prompt: prompts/hf_mechanism_agents/agent_trade_impact.md
+  - id: price_volume_divergence
+    name: 量价背离
+    fields: [close, volume, money]
+    prompt: prompts/hf_mechanism_agents/agent_price_volume_divergence.md
+  - id: spread_liquidity
+    name: 价差与微观流动性
+    fields: [askP1, bidP1, askV1, bidV1]
+    prompt: prompts/hf_mechanism_agents/agent_spread_liquidity.md
+  - id: short_reversal
+    name: 短期反转
+    fields: [ret10s, ret30s, ret60s, ret120s]
+    prompt: prompts/hf_mechanism_agents/agent_short_reversal.md
+  - id: short_momentum
+    name: 短期趋势
+    fields: [ret10s, ret30s, ret60s, ret120s, volume, money]
+    prompt: prompts/hf_mechanism_agents/agent_short_momentum.md
+  - id: volatility_burst
+    name: 波动突变
+    fields: [ret10s, ret30s, ret60s, ret120s]
+    prompt: prompts/hf_mechanism_agents/agent_volatility_burst.md
+  - id: book_shape
+    name: 盘口形态
+    fields: [askP1, askP10, bidP1, bidP10, askV1, askV10, bidV1, bidV10]
+    prompt: prompts/hf_mechanism_agents/agent_book_shape.md
+  - id: trading_rhythm
+    name: 成交节律
+    fields: [volume, money, ret10s, ret30s, ret60s]
+    prompt: prompts/hf_mechanism_agents/agent_trading_rhythm.md

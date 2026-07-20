@@ -1,0 +1,20 @@
+[project]
+name = "agent-alpha"
+version = "0.1.0"
+description = "High-frequency alpha idea, implementation, and evaluation agent skeleton"
+requires-python = ">=3.10"
+dependencies = [
+  "PyYAML",
+  "requests",
+  "numpy",
+  "pypdf",
+]
+
+[project.scripts]
+agent-alpha-signals = "agent_alpha.workflows.generate_signals_from_papers:main"
+agent-alpha-ingest-local-paper = "agent_alpha.workflows.ingest_local_paper:main"
+agent-alpha-batch-factor-iteration = "agent_alpha.workflows.batch_factor_iteration:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

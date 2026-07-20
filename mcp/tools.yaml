@@ -1,0 +1,16 @@
+schema_version: mcp_tools_v1
+source: configs/mcp_tools.yaml
+tools:
+	- market_data.list_fields
+	- market_data.validate_factor_fields
+	- factor.validate_candidate
+	- factor.render_and_compile_candidate
+	- factor.render_fac_eval_file
+	- factor.write_fac_eval_config
+	- research_memory.search_chunks
+	- factor_registry.search_factors
+	- evaluation_memory.get_good_bad_memory
+	- specialist_memory.search
+	- function_memory.search
+	- transfer_memory.search
+	- mutation_controller.select_plan

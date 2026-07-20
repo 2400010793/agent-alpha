@@ -1,0 +1,74 @@
+schema_version: paper_sources_v1
+defaults:
+  user_agent: agent-alpha-paper-reader/0.1
+  request_timeout_sec: 20
+  max_items_per_source: 20
+  output_dir: data/raw_papers
+  fetch_filter:
+    min_include_keyword_hits: 1
+    require_hf_context: true
+    max_age_days: 1095
+    allowed_source_types:
+      - paper
+      - research_blog
+      - blog
+      - local_document
+    download_full_text: false
+    include_keywords:
+      - high-frequency
+      - intraday
+      - tick
+      - order book
+      - limit order book
+      - microstructure
+      - liquidity
+      - spread
+      - order imbalance
+      - trade flow
+      - volume
+      - market making
+      - transaction cost
+      - 高频
+      - 日内
+      - 盘口
+      - 订单簿
+      - 微观结构
+      - 流动性
+      - 价差
+      - 成交量
+    exclude_keywords:
+      - annual report
+      - earnings call
+      - fundamental
+      - macro
+      - analyst forecast
+      - sentiment only
+      - portfolio choice only
+      - monthly anomaly only
+      - 基本面
+      - 财报
+      - 宏观
+      - 分析师
+sources:
+  - id: local_examples
+    type: local
+    enabled: true
+    paths:
+      - examples/*.md
+      - examples/*.txt
+      - examples/*.pdf
+    source_name: Local research documents
+    source_type: local_document
+  - id: arxiv_qfin
+    type: arxiv
+    enabled: false
+    url: https://export.arxiv.org/api/query
+    query: cat:q-fin.* AND (microstructure OR "limit order book" OR intraday OR liquidity)
+    source_name: arXiv q-fin
+    source_type: paper
+  - id: research_rss
+    type: rss
+    enabled: false
+    url: https://rss.arxiv.org/rss/q-fin
+    source_name: Research RSS
+    source_type: paper

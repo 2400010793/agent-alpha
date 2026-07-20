@@ -1,0 +1,8 @@
+schema_version: signal_generation_v1
+reading_gate:
+  min_recommendation_score: 5.5
+  require_evidence: true
+  require_trading_intuition: true
+  min_mechanism_chain_items: 1
+  gated_pipeline_name: agent-alpha-reading-gated-v1
+  gated_reason_prefix: reading_score_below_threshold
