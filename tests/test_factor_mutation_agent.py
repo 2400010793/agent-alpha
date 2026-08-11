@@ -9,8 +9,8 @@ from agent_alpha.memory.function_memory import load_function_memory
 from agent_alpha.memory.memory_summary_agent import MemorySummaryAgent, MemorySummaryPaths
 from agent_alpha.memory.specialist_memory import load_specialist_memory
 from agent_alpha.memory.transfer_memory import load_transfer_memory
-from agent_alpha.search.factor_mutation import generate_factor_mutations
-from agent_alpha.search.mutation_guard import canonical_prefix, prefix_equivalent
+from agent_alpha.search.factor_mutation import _compact_memory_context, generate_factor_mutations, mcp_tools_for_mutation_focus
+from agent_alpha.search.mutation_guard import canonical_prefix, is_empty_or_equivalent_mutation, prefix_equivalent, sign_equivalent
 from agent_alpha.search.iterative_enhancer import enhance_candidates
 from agent_alpha.search.mutation_controller import select_mutation_plan
 
@@ -30,12 +30,23 @@ class FakeMcpFactorMutationClient(FakeFactorMutationClient):
         super().__init__(payload)
         self.tool_names: list[str] = []
         self.tool_role = ""
+        self.mcp_calls = 0
 
     def complete_json_with_mcp_tools(self, messages: list[dict[str, Any]], *, tool_names: list[str], role: str, max_tool_rounds: int = 4) -> dict[str, Any]:
+        self.mcp_calls += 1
         self.messages = messages
         self.tool_names = tool_names
         self.tool_role = role
         return self.payload
+
+
+class PayloadTooLargeMcpClient(FakeMcpFactorMutationClient):
+    def complete_json_with_mcp_tools(self, messages: list[dict[str, Any]], *, tool_names: list[str], role: str, max_tool_rounds: int = 4) -> dict[str, Any]:
+        self.mcp_calls += 1
+        self.messages = messages
+        self.tool_names = tool_names
+        self.tool_role = role
+        raise RuntimeError("LLM request failed: 413 Client Error: Payload Too Large")
 
 
 def _parent_candidate() -> dict[str, Any]:
@@ -121,13 +132,60 @@ def test_factor_mutation_agent_outputs_valid_factor_candidate() -> None:
 def test_factor_mutation_agent_uses_mcp_tools_when_available() -> None:
     client = FakeMcpFactorMutationClient(_mutation_payload())
 
-    mutations = generate_factor_mutations(_parent_candidate(), client, exploration_direction="price confirmation")
+    mutations = generate_factor_mutations(_parent_candidate(), client, exploration_direction="price confirmation", mutation_focus="event_definition_mutation")
 
     assert len(mutations) == 1
     assert client.tool_role == "The Implementer"
-    assert "specialist_memory.search" in client.tool_names
-    assert "function_memory.search" in client.tool_names
-    assert "factor.render_and_compile_candidate" in client.tool_names
+    assert client.tool_names == ["specialist_memory.search", "transfer_memory.search", "factor.validate_candidate"]
+
+
+def test_factor_mutation_agent_mcp_tools_are_specialist_scoped() -> None:
+    assert mcp_tools_for_mutation_focus("normalization_robustness_mutation") == ["specialist_memory.search", "function_memory.search", "factor.validate_candidate"]
+    assert mcp_tools_for_mutation_focus("refinement_simplification") == ["specialist_memory.search", "function_memory.search", "factor.validate_candidate"]
+    assert "transfer_memory.search" in mcp_tools_for_mutation_focus("time_structure_mutation")
+    assert "factor.render_and_compile_candidate" not in mcp_tools_for_mutation_focus("state_condition_mutation")
+
+
+def test_factor_mutation_agent_falls_back_without_mcp_on_payload_too_large() -> None:
+    client = PayloadTooLargeMcpClient(_mutation_payload())
+
+    mutations = generate_factor_mutations(_parent_candidate(), client, exploration_direction="price confirmation", mutation_focus="event_definition_mutation")
+
+    assert len(mutations) == 1
+    assert client.mcp_calls == 1
+    assert client.tool_names == ["specialist_memory.search", "transfer_memory.search", "factor.validate_candidate"]
+
+
+def test_factor_mutation_compacts_large_memory_context_under_budget() -> None:
+    large_record = {
+        "label": "GOOD",
+        "mutation_focus": "state_condition_mutation",
+        "summary": "spread state helped " * 200,
+        "avoid_rule": "avoid sparse masks " * 200,
+        "repair_hint": "prefer continuous interactions " * 200,
+        "fields": ["depth_imbalance_l1", "spread_l1"],
+        "failure_modes": ["low_finite_ratio"],
+    }
+    context = {
+        "lineage_context": {
+            "root_factor_id": "root",
+            "parent_factor_id": "parent",
+            "ancestor_count": 20,
+            "chain": [
+                {"factor_id": f"ancestor_{index}", "prefix_expression": ["zscore", "volume", 60 + index], "fields": ["volume"], "windows": [60 + index], "score": 0.01 * index}
+                for index in range(20)
+            ],
+        },
+        "specialist_memory": [large_record for _ in range(12)],
+        "function_memory": [large_record for _ in range(12)],
+        "transfer_memory": [large_record for _ in range(12)],
+    }
+
+    compact = _compact_memory_context(context, None, None)
+
+    assert compact["budget"]["actual_chars"] <= compact["budget"]["max_chars"]
+    assert len(compact["lineage_context"]["chain"]) <= 8
+    assert len(compact["specialist_memory"]) <= 3
 
 
 def test_factor_mutation_agent_coerces_numeric_string_literals() -> None:
@@ -169,6 +227,17 @@ def test_canonical_prefix_removes_noop_transforms() -> None:
     assert canonical_prefix(["add", 0, ["zscore", "volume", 60]]) == ["zscore", "volume", 60]
     assert canonical_prefix(["safe_div", ["zscore", "volume", 60], 1]) == ["zscore", "volume", 60]
     assert prefix_equivalent(["sub", "bidV1", 0], "bidV1")
+    assert prefix_equivalent(["sub", 0, "bidV1"], ["neg", "bidV1"])
+    assert prefix_equivalent(["sub", "bidV1", "bidV1"], 0)
+    assert prefix_equivalent(["add", "bidV1", ["neg", "bidV1"]], 0)
+    assert sign_equivalent(["sub", "bidV1", "askV1"], ["sub", "askV1", "bidV1"])
+
+
+def test_mutation_guard_uses_optional_preview_value_correlation() -> None:
+    parent = {**_parent_candidate(), "preview_values": [1, 2, 3, 4, 5]}
+    child = {**_parent_candidate(), "prefix_expression": ["zscore", "close", 20], "preview_values": [2, 4, 6, 8, 10]}
+
+    assert is_empty_or_equivalent_mutation(parent, child)
 
 
 def test_factor_mutation_agent_rejects_equivalent_noop_mutation() -> None:
@@ -242,6 +311,43 @@ def test_mutation_controller_combines_parent_and_agent_with_arm_memory() -> None
     assert plan.mutation_focus == "state_condition_mutation"
     assert plan.agent_name == "StateConditionMutationAgent"
     assert plan.memory_context["selector"]["arm_stats"]["mean_reward"] == 0.3
+
+
+def test_mutation_controller_penalizes_overused_lineage() -> None:
+    overused = {**_parent_candidate(), "factor_id": "overused_parent", "name": "overused_parent", "lineage_id": "overused_lineage"}
+    fresh = {**_parent_candidate(), "factor_id": "fresh_parent", "name": "fresh_parent", "lineage_id": "fresh_lineage"}
+    feedback = [
+        {"factor_id": "overused_parent", "label": "REVISE", "summary": "strong but repeatedly searched", "metrics": {"daily_rankic": 0.06}},
+        {"factor_id": "fresh_parent", "label": "REVISE", "summary": "near miss", "metrics": {"daily_rankic": 0.055}},
+    ]
+    arm_memory = {
+        "overused_lineage:event_definition_mutation": {"n_trials": 16, "mean_reward": 0.0, "failure_count": 0},
+        "overused_lineage:state_condition_mutation": {"n_trials": 16, "mean_reward": 0.0, "failure_count": 0},
+        "overused_lineage:response_shape_mutation": {"n_trials": 16, "mean_reward": 0.0, "failure_count": 0},
+        "overused_lineage:normalization_robustness_mutation": {"n_trials": 16, "mean_reward": 0.0, "failure_count": 0},
+        "overused_lineage:time_structure_mutation": {"n_trials": 16, "mean_reward": 0.0, "failure_count": 0},
+        "overused_lineage:refinement_simplification": {"n_trials": 16, "mean_reward": 0.0, "failure_count": 0},
+    }
+
+    plan = select_mutation_plan([overused, fresh], feedback, arm_memory=arm_memory, exploration_c=0.0)
+
+    assert plan is not None
+    assert plan.parent_candidate["factor_id"] == "fresh_parent"
+    assert plan.memory_context["selector"]["lineage_trials"] == 0
+
+
+def test_mutation_controller_skips_hard_failure_parent() -> None:
+    bad = {**_parent_candidate(), "factor_id": "bad_parent", "name": "bad_parent"}
+    live = {**_parent_candidate(), "factor_id": "live_parent", "name": "live_parent"}
+    feedback = [
+        {"factor_id": "bad_parent", "label": "BAD", "failure_modes": ["compile_failed"], "metrics": {"daily_rankic": 0.5}},
+        {"factor_id": "live_parent", "label": "REVISE", "summary": "valid weak", "metrics": {"daily_rankic": 0.02}},
+    ]
+
+    plan = select_mutation_plan([bad, live], feedback)
+
+    assert plan is not None
+    assert plan.parent_candidate["factor_id"] == "live_parent"
 
 
 def test_mutation_controller_skips_stopped_lineage_and_prefers_near_elite() -> None:
@@ -330,7 +436,7 @@ def test_iterative_enhancer_passes_bounded_memory_context_to_specialist(tmp_path
 
     prompt_payload = json.loads(client.messages[1]["content"])
     context = prompt_payload["memory_context"]
-    assert context["budget"]["approx_max_tokens"] == 8000
+    assert context["budget"]["max_chars"] == 12000
     assert context["budget"]["actual_chars"] <= context["budget"]["max_chars"]
     assert context["specialist_memory"][0]["summary"] == "specialist spread memory"
     assert context["function_memory"][0]["summary"] == "function zscore memory"
@@ -359,6 +465,25 @@ def test_memory_summary_agent_writes_specialist_function_and_transfer_memory(tmp
     records = agent.write_mutation_memories(plan, child, child_review={"decision": "revise", "metrics": {"daily_rankic": 0.04}})
 
     assert records["specialist"]["agent_name"] == "EventDefinitionMutationAgent"
+    assert records["mutation_arm"]["reward"] == 0.04
     assert load_specialist_memory("EventDefinitionMutationAgent", root=tmp_path / "specialists")[0]["child_factor_id"] == "volume_price_confirm_pressure"
     assert load_function_memory(tmp_path / "function_memory.jsonl")[0]["asl_ops"] == ["mul", "zscore"]
     assert load_transfer_memory(tmp_path / "transfer_memory.jsonl")[0]["mutation_type"] == "event_definition_mutation"
+
+
+def test_memory_summary_agent_does_not_count_arm_trial_without_review(tmp_path) -> None:
+    plan = select_mutation_plan([_parent_candidate()], [{"factor_id": "volume_pressure", "label": "BAD", "summary": "volume-only shocks are noisy"}])
+    child = {**_parent_candidate(), "factor_id": "volume_price_confirm_pressure", "name": "volume_price_confirm_pressure"}
+    agent = MemorySummaryAgent(
+        MemorySummaryPaths(
+            specialist_root=tmp_path / "specialists",
+            function_memory_path=tmp_path / "function_memory.jsonl",
+            transfer_memory_path=tmp_path / "transfer_memory.jsonl",
+            mutation_arm_memory_path=tmp_path / "mutation_arm_memory.jsonl",
+        )
+    )
+
+    records = agent.write_mutation_memories(plan, child)
+
+    assert "mutation_arm" not in records
+    assert not (tmp_path / "mutation_arm_memory.jsonl").exists()

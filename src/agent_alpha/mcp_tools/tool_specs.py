@@ -6,6 +6,7 @@ TOOL_NAME_SEPARATOR = "__"
 
 DESCRIPTIONS = {
     "market_data.list_fields": "Return raw, derived, label, blocked field metadata and allowed functions.",
+    "market_data.recommend_fields": "Recommend runtime-safe fields for one AlphaSignal using mechanism tags, signal text, and candidate fields.",
     "market_data.validate_factor_fields": "Validate an expression against field whitelist and label leakage rules.",
     "factor.validate_candidate": "Validate and canonicalize a FactorCandidate JSON object.",
     "factor.render_and_compile_candidate": "Validate, render, and py_compile a FactorCandidate JSON object.",
@@ -13,6 +14,7 @@ DESCRIPTIONS = {
     "factor.write_fac_eval_config": "Write a fac-eval-demo compatible YAML config for rendered factor files.",
     "research_memory.search_chunks": "Search ingested document chunks by keyword query.",
     "factor_registry.search_factors": "Search stored factor candidate metadata by keyword query.",
+    "factor_registry.search_similar_factors": "Search similar historical factors and alpha records for one AlphaSignal.",
     "evaluation_memory.get_good_bad_memory": "Search GOOD/BAD/REVISE feedback memory by keyword query.",
     "specialist_memory.search": "Search compact memory for one specialist mutation agent.",
     "function_memory.search": "Search compact memory about ASL ops, fields, windows, and failure or repair rules.",
@@ -23,6 +25,16 @@ DESCRIPTIONS = {
 
 PARAMETERS = {
     "market_data.list_fields": {"type": "object", "additionalProperties": False, "properties": {}},
+    "market_data.recommend_fields": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["signal"],
+        "properties": {
+            "signal": {"type": "object", "additionalProperties": True},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+            "runtime_safe_only": {"type": "boolean"},
+        },
+    },
     "market_data.validate_factor_fields": {
         "type": "object",
         "additionalProperties": False,
@@ -62,6 +74,17 @@ PARAMETERS = {
         "type": "object",
         "additionalProperties": False,
         "properties": {"path": {"type": "string"}, "query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+    },
+    "factor_registry.search_similar_factors": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["signal"],
+        "properties": {
+            "signal": {"type": "object", "additionalProperties": True},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+            "factor_registry_path": {"type": "string"},
+            "candidate_sources": {"type": "array", "items": {"type": "string"}},
+        },
     },
     "evaluation_memory.get_good_bad_memory": {
         "type": "object",

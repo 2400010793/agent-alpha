@@ -13,6 +13,8 @@ from agent_alpha.factors.llm_candidate_guard import qualify_factor_candidate_pay
 from agent_alpha.memory.function_memory import search_function_memory
 from agent_alpha.memory.specialist_memory import search_specialist_memory
 from agent_alpha.memory.transfer_memory import search_transfer_memory
+from agent_alpha.rag.alpha_memory_retriever import search_similar_alphas
+from agent_alpha.rag.field_retriever import recommend_fields_for_signal
 from agent_alpha.rag.field_registry import FieldRegistry
 from agent_alpha.search.mutation_controller import select_mutation_plan
 
@@ -32,6 +34,13 @@ def validate_factor_fields(query: dict[str, Any]) -> dict[str, Any]:
     expression = str(query.get("expression") or "")
     result = validate_factor_expression(expression, FieldRegistry.from_yaml())
     return result.__dict__
+
+
+def recommend_fields_tool(query: dict[str, Any]) -> dict[str, Any]:
+    signal = query.get("signal")
+    if not isinstance(signal, dict):
+        raise ValueError("signal must be a mapping")
+    return recommend_fields_for_signal(signal, limit=int(query.get("limit", 20)), runtime_safe_only=bool(query.get("runtime_safe_only", True)))
 
 
 def validate_factor_candidate_tool(query: dict[str, Any]) -> dict[str, Any]:
@@ -139,6 +148,21 @@ def search_transfer_memory_tool(query: dict[str, Any]) -> dict[str, Any]:
     limit = int(query.get("limit", 5))
     records = search_transfer_memory(query_text, path=path, limit=limit)
     return {"query": query_text, "records": records}
+
+
+def search_similar_factors_tool(query: dict[str, Any]) -> dict[str, Any]:
+    signal = query.get("signal")
+    if not isinstance(signal, dict):
+        raise ValueError("signal must be a mapping")
+    candidate_sources = query.get("candidate_sources")
+    if candidate_sources is not None and not isinstance(candidate_sources, list):
+        raise ValueError("candidate_sources must be a list when provided")
+    return search_similar_alphas(
+        signal,
+        limit=int(query.get("limit", 8)),
+        factor_registry_path=query.get("factor_registry_path") or "data/factor_registry/factors.jsonl",
+        candidate_sources=candidate_sources,
+    )
 
 
 def select_mutation_plan_tool(query: dict[str, Any]) -> dict[str, Any]:

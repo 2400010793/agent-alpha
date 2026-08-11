@@ -1,0 +1,34 @@
+schema_version: data_contract_v1
+data_contract_id: daily_ret_wide_v1
+track: daily_cross_sectional
+status: active
+sources:
+  - path: /home/gaozh/ret.parquet
+    format: parquet_wide
+    content_sha256: 2b3eedfadbaee7230478878c7e006a52e074b3c9279a0547433f219b5008e8e2
+    date_count: 4026
+    ticker_count: 5470
+    start_date: "2010-01-04"
+    end_date: "2026-08-03"
+allowed_observables:
+  - RETURN_HISTORY
+blocked_observables:
+  - PRICE_LEVEL_OHLC
+  - VOLUME_TURNOVER
+  - L2_BOOK_SNAPSHOT
+  - ORDER_EVENT_STREAM
+  - TRADE_PRINTS_SIGN
+  - FUNDAMENTAL_PIT
+  - MARKET_CAP_SHARES
+  - INDUSTRY_CLASSIFICATION
+  - DERIVATIVES_CHAIN
+  - CROSS_MARKET_DATA
+  - TEXT_EVENT
+  - MACRO_ALTERNATIVE
+  - EXECUTION_FILL_COST
+access_policy:
+  exact_paths:
+    - /home/gaozh/ret.parquet
+  allowed_roots: []
+  snapshot_manifest_required: false
+  cross_contract_reads: deny

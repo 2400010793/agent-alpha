@@ -1,0 +1,15 @@
+{
+  "schema_version": "new2_opinion_agents_v1",
+  "agents": {
+    "order_book_pressure": {"name": "盘口压力想法", "prompt": "prompts/opinion/order_book_pressure.md"},
+    "depute_imbalance": {"name": "委托失衡想法", "prompt": "prompts/opinion/depute_imbalance.md"},
+    "trade_impact": {"name": "成交冲击想法", "prompt": "prompts/opinion/trade_impact.md"},
+    "price_volume_divergence": {"name": "量价背离想法", "prompt": "prompts/opinion/price_volume_divergence.md"},
+    "spread_liquidity": {"name": "价差与流动性想法", "prompt": "prompts/opinion/spread_liquidity.md"},
+    "short_reversal": {"name": "短期反转想法", "prompt": "prompts/opinion/short_reversal.md"},
+    "short_momentum": {"name": "短期趋势想法", "prompt": "prompts/opinion/short_momentum.md"},
+    "volatility_burst": {"name": "波动突变想法", "prompt": "prompts/opinion/volatility_burst.md"},
+    "book_shape": {"name": "盘口形态想法", "prompt": "prompts/opinion/book_shape.md"},
+    "trading_rhythm": {"name": "成交节律想法", "prompt": "prompts/opinion/trading_rhythm.md"}
+  }
+}

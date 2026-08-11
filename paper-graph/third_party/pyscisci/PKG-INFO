@@ -1,0 +1,32 @@
+Metadata-Version: 2.1
+Name: pyscisci
+Version: 0.92
+Summary: Science of Science
+Home-page: https://github.com/ajgates42/pyscisci
+Author: Alex Gates <ajgates42@gmail.com>
+License: MIT
+Keywords: science of science,citation network,bibliometric
+Classifier: Development Status :: 4 - Beta
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+License-File: LICENSE
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: scikit-learn
+Requires-Dist: nameparser
+Requires-Dist: lxml
+Requires-Dist: requests
+Requires-Dist: unidecode
+Requires-Dist: tqdm
+Requires-Dist: dask
+Requires-Dist: numba
+Provides-Extra: nlp
+Requires-Dist: sparse_dot_topn; extra == "nlp"
+Requires-Dist: python-Levenshtein; extra == "nlp"
+Provides-Extra: hdf
+Requires-Dist: tables; extra == "hdf"
+
+Lets study science!

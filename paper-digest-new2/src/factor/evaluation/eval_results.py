@@ -1,0 +1,21 @@
+"""Factor evaluation result loading and attachment."""
+
+from src.factor._legacy import legacy
+
+load_factor_results = legacy.load_factor_results
+attach_factor_results = legacy.attach_factor_results
+_metric_mean = legacy._metric_mean
+_paper_hf_eval_row_summaries = legacy._paper_hf_eval_row_summaries
+_paper_hf_eval_metric_payload = legacy._paper_hf_eval_metric_payload
+load_paper_hf_proxy_results = legacy.load_paper_hf_proxy_results
+load_paper_hf_medium_results = legacy.load_paper_hf_medium_results
+load_paper_hf_large_results = legacy.load_paper_hf_large_results
+attach_paper_hf_proxy_results = legacy.attach_paper_hf_proxy_results
+attach_paper_hf_medium_results = legacy.attach_paper_hf_medium_results
+attach_paper_hf_large_results = legacy.attach_paper_hf_large_results
+load_factor_quality_results = legacy.load_factor_quality_results
+attach_factor_quality_results = legacy.attach_factor_quality_results
+load_promoted_factor_results = legacy.load_promoted_factor_results
+attach_promoted_factor_results = legacy.attach_promoted_factor_results
+
+__all__ = ["load_factor_results", "attach_factor_results", "load_paper_hf_proxy_results", "attach_paper_hf_proxy_results"]

@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from agent_alpha.llm.client import LLMClient
-from agent_alpha.memory.balanced_memory import select_balanced_memory
 from agent_alpha.memory.function_memory import search_function_memory
 from agent_alpha.memory.specialist_memory import search_specialist_memory
 from agent_alpha.memory.transfer_memory import search_transfer_memory
@@ -136,15 +135,15 @@ def _mutation_memory_context(plan, candidates: list[dict], feedback_records: lis
     lineage_context = _lineage_context(plan.parent_candidate, candidates, feedback_records)
     specialist_records = [
         _compact_record(record, ("label", "mutation_focus", "parent_factor_id", "child_factor_id", "summary", "reason", "mechanism_tags", "fields"))
-        for record in select_balanced_memory(search_specialist_memory(plan.agent_name, memory_query, limit=20), query=memory_query, kind="specialist", limit=4, seed_text=f"{plan.agent_name}:{memory_query}")
+        for record in search_specialist_memory(plan.agent_name, memory_query, limit=4)
     ]
     function_records = [
         _compact_record(record, ("label", "function_pattern", "asl_ops", "fields", "windows", "summary", "avoid_rule", "repair_hint", "failure_modes"))
-        for record in select_balanced_memory(search_function_memory(memory_query, limit=20), query=memory_query, kind="function", limit=5, seed_text=f"function:{memory_query}")
+        for record in search_function_memory(memory_query, limit=4)
     ]
     transfer_records = [
         _compact_record(record, ("label", "mutation_type", "from_pattern", "to_pattern", "parent_factor_id", "child_factor_id", "delta_score", "summary", "when_to_apply", "when_not_to_apply"))
-        for record in select_balanced_memory(search_transfer_memory(memory_query, limit=20), query=memory_query, kind="transfer", limit=5, seed_text=f"transfer:{memory_query}")
+        for record in search_transfer_memory(memory_query, limit=4)
     ]
     return _bounded_context(
         {
@@ -164,7 +163,6 @@ def enhance_candidates(
     client: LLMClient | None = None,
     exploration_direction: str = "",
     lineage_states: dict[str, Any] | None = None,
-    arm_memory: dict[str, Any] | None = None,
 ) -> list[dict]:
     """Propose next-round candidates with the LLM factor mutation agent.
 
@@ -175,7 +173,7 @@ def enhance_candidates(
     if max_new_candidates <= 0 or client is None:
         return []
 
-    plan = select_mutation_plan(candidates, feedback_records, lineage_states=lineage_states, arm_memory=arm_memory)
+    plan = select_mutation_plan(candidates, feedback_records, lineage_states=lineage_states)
     if plan is None:
         return []
     effective_summary, ineffective_summary, metrics = _feedback_summary(plan.feedback_records)

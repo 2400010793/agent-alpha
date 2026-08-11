@@ -38,6 +38,9 @@ class CandidatePoolRecord:
     status: str
     created_at: str
     updated_at: str
+    research_run_id: str = ""
+    graph_id: str = ""
+    hypothesis_id: str = ""
 
 
 def _utc_now_iso() -> str:
@@ -86,8 +89,16 @@ def build_pool_record(
     expr_hash = expression_hash(factor_candidate)
     dedupe_hash = prefix_hash or expr_hash
     now = _utc_now_iso()
+    scoped_id = _stable_hash(
+        {
+            "definition": dedupe_hash,
+            "research_run_id": factor_candidate.research_run_id,
+            "graph_id": factor_candidate.graph_id,
+            "hypothesis_id": factor_candidate.hypothesis_id,
+        }
+    )
     return CandidatePoolRecord(
-        candidate_id=f"cand_{dedupe_hash}",
+        candidate_id=f"cand_{scoped_id}",
         factor_id=factor_candidate.factor_id,
         name=factor_candidate.name,
         prefix_expression_hash=prefix_hash,
@@ -100,6 +111,9 @@ def build_pool_record(
         status=status,
         created_at=now,
         updated_at=now,
+        research_run_id=factor_candidate.research_run_id,
+        graph_id=factor_candidate.graph_id,
+        hypothesis_id=factor_candidate.hypothesis_id,
     )
  
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=Paper Digest new2 public web server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/gaozh/my-paper-digest-new2
+ExecStart=/usr/bin/python3 -m http.server 7880 --bind 0.0.0.0 -d /home/gaozh/my-paper-digest-new2/public
+Restart=always
+RestartSec=10s
+StandardOutput=append:/home/gaozh/my-paper-digest-new2/logs/paper_web_new2.service.log
+StandardError=append:/home/gaozh/my-paper-digest-new2/logs/paper_web_new2.service.log
+
+[Install]
+WantedBy=default.target

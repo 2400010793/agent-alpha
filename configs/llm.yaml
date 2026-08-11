@@ -1,5 +1,5 @@
 # LLM calls are configured from environment variables only.
-# Do not put API keys in this file.
+# Never put API keys or access tokens in this file.
 provider: github_models
 base_url_env: AGENT_ALPHA_LLM_BASE_URL
 fallback_base_url_env: PAPER_LLM_BASE_URL
@@ -7,6 +7,10 @@ api_key_envs:
   - AGENT_ALPHA_LLM_API_KEY1
   - AGENT_ALPHA_LLM_API_KEY2
   - AGENT_ALPHA_LLM_API_KEY3
+fallback_api_key_envs:
+  - PAPER_LLM_API_KEY1
+  - PAPER_LLM_API_KEY2
+  - PAPER_LLM_API_KEY3
 model_env: AGENT_ALPHA_LLM_MODEL
 fallback_model_env: PAPER_LLM_MODEL
 default_base_url: https://models.github.ai/inference

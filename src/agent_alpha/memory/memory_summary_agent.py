@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_alpha.memory.function_memory import DEFAULT_FUNCTION_MEMORY_PATH, append_function_memory
+from agent_alpha.memory.mutation_arm_memory import DEFAULT_MUTATION_ARM_MEMORY_PATH, append_mutation_arm_event
 from agent_alpha.memory.specialist_memory import DEFAULT_SPECIALIST_MEMORY_DIR, append_specialist_memory
 from agent_alpha.memory.transfer_memory import DEFAULT_TRANSFER_MEMORY_PATH, append_transfer_memory
 from agent_alpha.llm.client import LLMClient
@@ -68,11 +69,67 @@ def _score(review: dict[str, Any] | None) -> float | None:
     return None
 
 
+def _short_text(value: Any, limit: int = 180) -> str:
+    text = " ".join(str(value or "").split())
+    return text[:limit]
+
+
+def _valid_label(value: Any) -> str:
+    label = str(value or "").upper()
+    return label if label in {"GOOD", "BAD", "REVISE", "NEUTRAL"} else "NEUTRAL"
+
+
+def _clean_function_memory(records: list[Any], *, limit: int = 1) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        summary = _short_text(record.get("summary"))
+        if not summary:
+            continue
+        out.append(
+            {
+                "label": _valid_label(record.get("label")),
+                "function_pattern": _short_text(record.get("function_pattern"), 120),
+                "summary": summary,
+                "avoid_rule": _short_text(record.get("avoid_rule"), 160),
+                "repair_hint": _short_text(record.get("repair_hint"), 160),
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _clean_transfer_memory(records: list[Any], *, limit: int = 2) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        summary = _short_text(record.get("summary"))
+        mutation_type = _short_text(record.get("mutation_type"), 80)
+        if not summary or not mutation_type:
+            continue
+        out.append(
+            {
+                "label": _valid_label(record.get("label")),
+                "mutation_type": mutation_type,
+                "summary": summary,
+                "when_to_apply": _short_text(record.get("when_to_apply"), 160),
+                "when_not_to_apply": _short_text(record.get("when_not_to_apply"), 160),
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
 @dataclass(frozen=True)
 class MemorySummaryPaths:
     specialist_root: str | Path = DEFAULT_SPECIALIST_MEMORY_DIR
     function_memory_path: str | Path = DEFAULT_FUNCTION_MEMORY_PATH
     transfer_memory_path: str | Path = DEFAULT_TRANSFER_MEMORY_PATH
+    mutation_arm_memory_path: str | Path = DEFAULT_MUTATION_ARM_MEMORY_PATH
 
 
 class MemorySummaryAgent:
@@ -153,9 +210,41 @@ class MemorySummaryAgent:
         specialist = append_specialist_memory(plan.agent_name, self.summarize_specialist(plan, child_candidate, child_review), root=self.paths.specialist_root)
         function = append_function_memory(self.summarize_function(plan, child_candidate, child_review), path=self.paths.function_memory_path)
         transfer = append_transfer_memory(self.summarize_transfer(plan, child_candidate, child_review, parent_review), path=self.paths.transfer_memory_path)
-        return {"specialist": specialist, "function": function, "transfer": transfer}
+        records = {"specialist": specialist, "function": function, "transfer": transfer}
+        if child_review is not None:
+            parent_score = _score(parent_review)
+            child_score = _score(child_review)
+            if parent_score is not None and child_score is not None:
+                reward = child_score - parent_score
+            elif child_score is not None:
+                reward = child_score
+            else:
+                reward = 0.0
+            label = _label_from_review(child_review)
+            lineage_id = str(plan.parent_candidate.get("lineage_id") or plan.parent_candidate.get("factor_id") or plan.parent_candidate.get("name") or "unknown_lineage")
+            records["mutation_arm"] = append_mutation_arm_event(
+                {
+                    "lineage_id": lineage_id,
+                    "mutation_focus": plan.mutation_focus,
+                    "agent_name": plan.agent_name,
+                    "parent_factor_id": _factor_id(plan.parent_candidate),
+                    "child_factor_id": _factor_id(child_candidate),
+                    "label": label,
+                    "reward": reward,
+                    "success": label == "GOOD" and reward > 0,
+                    "summary": str(child_candidate.get("mutated_idea") or child_candidate.get("economic_rationale") or plan.reason),
+                },
+                path=self.paths.mutation_arm_memory_path,
+            )
+        return records
 
-    def summarize_with_llm(self, records: list[dict[str, Any]], client: LLMClient, *, max_records: int = 12) -> dict[str, Any]:
+    def write_llm_summaries(self, records: list[dict[str, Any]], client: LLMClient, *, max_records: int = 12, max_function_memory: int = 1, max_transfer_memory: int = 2) -> dict[str, list[dict[str, Any]]]:
+        summary = self.summarize_with_llm(records, client, max_records=max_records, max_function_memory=max_function_memory, max_transfer_memory=max_transfer_memory)
+        written_function = [append_function_memory(record, path=self.paths.function_memory_path) for record in summary.get("function_memory", []) if isinstance(record, dict)]
+        written_transfer = [append_transfer_memory(record, path=self.paths.transfer_memory_path) for record in summary.get("transfer_memory", []) if isinstance(record, dict)]
+        return {"function_memory": written_function, "transfer_memory": written_transfer}
+
+    def summarize_with_llm(self, records: list[dict[str, Any]], client: LLMClient, *, max_records: int = 12, max_function_memory: int = 1, max_transfer_memory: int = 2) -> dict[str, Any]:
         """Optionally distill batches into very short Cog-style memories.
 
         This is not used in the default mutation path; callers can run it once
@@ -163,18 +252,23 @@ class MemorySummaryAgent:
         """
         payload = {
             "records": records[:max_records],
-            "max_summary_chars": 240,
+            "max_summary_chars": 180,
+            "max_function_memory": max_function_memory,
+            "max_transfer_memory": max_transfer_memory,
             "style": "Observation -> Cause -> Fix",
         }
-        response = client.complete_json(
-            [
-                {"role": "system", "content": load_prompt("prompts/thinking_evolution/memory_summary_v1_system.md")},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-            ]
-        )
+        try:
+            response = client.complete_json(
+                [
+                    {"role": "system", "content": load_prompt("prompts/thinking_evolution/memory_summary_v1_system.md")},
+                    {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+                ]
+            )
+        except RuntimeError:
+            return {"function_memory": [], "transfer_memory": []}
         return {
-            "function_memory": response.get("function_memory", []) if isinstance(response.get("function_memory"), list) else [],
-            "transfer_memory": response.get("transfer_memory", []) if isinstance(response.get("transfer_memory"), list) else [],
+            "function_memory": _clean_function_memory(response.get("function_memory", []) if isinstance(response.get("function_memory"), list) else [], limit=max_function_memory),
+            "transfer_memory": _clean_transfer_memory(response.get("transfer_memory", []) if isinstance(response.get("transfer_memory"), list) else [], limit=max_transfer_memory),
         }
 
 

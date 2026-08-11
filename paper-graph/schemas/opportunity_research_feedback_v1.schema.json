@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpportunityResearchFeedbackV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "feedback_id", "research_opportunity_id",
+    "research_run_id", "package_id", "target_track", "data_contract_hash",
+    "status", "hypothesis_outcomes", "evidence_gaps", "relation_challenges",
+    "failure_reasons", "recommendations", "source_artifact_ids", "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "opportunity_research_feedback_v1"},
+    "feedback_id": {"type": "string", "pattern": "^oppfeedback:"},
+    "research_opportunity_id": {"type": "string", "pattern": "^opportunity:"},
+    "research_run_id": {"type": "string", "minLength": 1},
+    "package_id": {"type": "string", "pattern": "^researchpkg:"},
+    "target_track": {"type": "string", "minLength": 1},
+    "data_contract_hash": {"type": "string", "minLength": 1},
+    "status": {"enum": ["COMPLETED", "FAILED", "INCONCLUSIVE", "CANCELLED"]},
+    "hypothesis_outcomes": {"type": "array"},
+    "evidence_gaps": {"type": "array"},
+    "relation_challenges": {"type": "array"},
+    "failure_reasons": {"type": "array"},
+    "recommendations": {"type": "array"},
+    "source_artifact_ids": {"type": "array", "minItems": 1, "uniqueItems": true},
+    "created_at": {"type": "string", "minLength": 1}
+  }
+}

@@ -4,10 +4,12 @@ from uuid import uuid4
 
 from agent_alpha.mcp_tools.local_tools import (
     list_fields,
+    recommend_fields_tool,
     render_and_compile_candidate_tool,
     render_fac_eval_file,
     search_function_memory_tool,
     search_jsonl,
+    search_similar_factors_tool,
     search_specialist_agent_memory,
     search_transfer_memory_tool,
     select_mutation_plan_tool,
@@ -23,6 +25,8 @@ def call_tool(tool_name: str, query: dict, *, role: str) -> dict:
     assert_tool_allowed(role, tool_name)
     if tool_name == "market_data.list_fields":
         results = list_fields(query)
+    elif tool_name == "market_data.recommend_fields":
+        results = recommend_fields_tool(query)
     elif tool_name == "market_data.validate_factor_fields":
         results = validate_factor_fields(query)
     elif tool_name == "factor.validate_candidate":
@@ -37,6 +41,8 @@ def call_tool(tool_name: str, query: dict, *, role: str) -> dict:
         results = search_jsonl(query.get("path", "data/document_chunks/missing.jsonl"), str(query.get("query", "")), int(query.get("limit", 10)))
     elif tool_name == "factor_registry.search_factors":
         results = search_jsonl(query.get("path", "data/factor_registry/missing.jsonl"), str(query.get("query", "")), int(query.get("limit", 10)))
+    elif tool_name == "factor_registry.search_similar_factors":
+        results = search_similar_factors_tool(query)
     elif tool_name == "evaluation_memory.get_good_bad_memory":
         results = search_jsonl(query.get("path", "data/feedback_memory/missing.jsonl"), str(query.get("query", "")), int(query.get("limit", 10)))
     elif tool_name == "specialist_memory.search":

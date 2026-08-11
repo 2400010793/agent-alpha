@@ -26,8 +26,10 @@ def _candidate(factor_id: str) -> dict:
 def test_permission_guard_includes_specialist_memory_and_controller_tools() -> None:
     implementer_tools = allowed_tools_for_role("The Implementer")
 
+    assert "market_data.recommend_fields" in implementer_tools
     assert "factor.validate_candidate" in implementer_tools
     assert "factor.render_and_compile_candidate" in implementer_tools
+    assert "factor_registry.search_similar_factors" in implementer_tools
     assert "specialist_memory.search" in implementer_tools
     assert "function_memory.search" in implementer_tools
     assert "transfer_memory.search" in implementer_tools
@@ -36,14 +38,36 @@ def test_permission_guard_includes_specialist_memory_and_controller_tools() -> N
 
 
 def test_mcp_tool_specs_include_precise_memory_parameters() -> None:
+    recommend = mcp_tool_spec("market_data.recommend_fields")["function"]
     specialist = mcp_tool_spec("specialist_memory.search")["function"]
     function_memory = mcp_tool_spec("function_memory.search")["function"]
+    similar = mcp_tool_spec("factor_registry.search_similar_factors")["function"]
     controller = mcp_tool_spec("mutation_controller.select_plan")["function"]
 
+    assert recommend["parameters"]["required"] == ["signal"]
     assert "specialist mutation agent" in specialist["description"]
     assert specialist["parameters"]["required"] == ["agent_name"]
     assert "query" in function_memory["parameters"]["properties"]
+    assert similar["parameters"]["required"] == ["signal"]
     assert controller["parameters"]["required"] == ["candidates"]
+
+
+def test_field_recommendation_and_similar_factor_tools_return_envelopes(tmp_path: Path) -> None:
+    signal = {
+        "signal_id": "depth_hidden_liquidity",
+        "signal_name": "Depth and hidden liquidity pressure",
+        "hf_mechanism_tags": ["order_book_pressure", "hidden_liquidity"],
+        "candidate_fields": ["depth_imbalance_l1", "totalDeputeBuy", "ret60s"],
+    }
+    source = tmp_path / "candidates.json"
+    source.write_text('{"factor_candidates":[{"factor_id":"depth_alpha","fields":["depth_imbalance_l1"],"mechanism_tags":["order_book_pressure"]}]}', encoding="utf-8")
+
+    fields = call_tool("market_data.recommend_fields", {"signal": signal, "limit": 5}, role="The Implementer")
+    similar = call_tool("factor_registry.search_similar_factors", {"signal": signal, "candidate_sources": [str(source)], "limit": 2}, role="The Implementer")
+
+    assert "ret60s" not in fields["results"]["recommended_field_names"]
+    assert "depth_imbalance_l1" in fields["results"]["recommended_field_names"]
+    assert similar["results"]["similar_factors"][0]["factor_id"] == "depth_alpha"
 
 
 def test_specialist_memory_search_tool_returns_envelope(tmp_path: Path) -> None:

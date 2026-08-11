@@ -1,0 +1,3 @@
+version: 1
+description: Human review overrides for HF factor faithfulness. Keep this file as the source of manual verdicts; do not write verdicts back into archive rows.
+reviews: {}

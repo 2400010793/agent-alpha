@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from agent_alpha.factors.llm_candidate_guard import admit_factor_candidate_with_mcp
+from agent_alpha.factors.llm_candidate_guard import qualify_factor_candidate_payload
 from agent_alpha.llm.client import LLMClient
 from agent_alpha.llm.prompt_runner import load_prompt
 from agent_alpha.rag.field_registry import FieldRegistry
@@ -32,7 +32,6 @@ def generate_factor_candidates_with_llm(
     max_candidates: int = 2,
     feedback_memory_path: str | Path | None = None,
     strict: bool = True,
-    use_mcp_tools: bool = True,
 ) -> list[dict[str, Any]]:
     """Use the LLM Implementer to produce FactorCandidate JSON, not Python code."""
     registry = FieldRegistry.from_yaml()
@@ -78,20 +77,7 @@ def generate_factor_candidates_with_llm(
             ),
         },
     ]
-    if use_mcp_tools and hasattr(client, "complete_json_with_mcp_tools"):
-        payload = client.complete_json_with_mcp_tools(
-            messages,
-            tool_names=[
-                "market_data.list_fields",
-                "evaluation_memory.get_good_bad_memory",
-                "function_memory.search",
-                "factor.validate_candidate",
-                "factor.render_and_compile_candidate",
-            ],
-            role="The Implementer",
-        )
-    else:
-        payload = client.complete_json(messages)
+    payload = client.complete_json(messages)
     if _contains_python_code(payload):
         raise RuntimeError("LLM factor response must not contain Python code or compute_factor")
     raw_candidates = payload.get("factor_candidates", [])
@@ -108,11 +94,15 @@ def generate_factor_candidates_with_llm(
         item.setdefault("source_signal_id", signal.get("signal_id", ""))
         item.setdefault("source_reading_note_id", signal.get("source_reading_note_id", ""))
         item.setdefault("mechanism_tags", signal.get("hf_mechanism_tags", []))
+        item.setdefault("economic_rationale", signal.get("market_intuition", ""))
+        for context_key in ("research_run_id", "graph_id", "graph_version", "hypothesis_id", "evidence_ids"):
+            if context_key in signal:
+                item.setdefault(context_key, signal[context_key])
         if item.get("prefix_expression") is None:
             if strict:
                 raise RuntimeError("LLM factor response must include prefix_expression")
             continue
-        qualification = admit_factor_candidate_with_mcp(item)
+        qualification = qualify_factor_candidate_payload(item, registry=registry)
         if not qualification.ok:
             if strict:
                 raise RuntimeError(f"LLM factor response failed validation: {qualification.message}")

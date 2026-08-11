@@ -1,0 +1,15 @@
+schema_version: daily_evaluation_policy_v1
+data_contract_id: daily_ret_wide_v1
+primary_metric: daily_rankic_mean
+secondary_metrics: [rankicir, positive_rankic_ratio, qspread_mean, finite_ratio]
+min_cross_sectional_obs: 100
+anomaly_policy:
+  mask_abs_return_gt: 1.0
+  zero_return_policy: preserve
+label_policy:
+  availability: t_plus_1_through_t_plus_h
+  compounding: simple_return_product
+stage_policy:
+  exploration_can_read: [train]
+  validation_can_read: [train, validation]
+  locked_test_can_read: [locked_test]

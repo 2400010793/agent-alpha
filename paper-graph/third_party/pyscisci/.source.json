@@ -1,0 +1,18 @@
+{
+  "name": "pyscisci",
+  "version": "0.92",
+  "source_type": "pypi_sdist",
+  "source_url": "https://pypi.org/project/pyscisci/0.92/",
+  "upstream_repository": "https://github.com/SciSciCollective/pyscisci",
+  "sdist_filename": "pyscisci-0.92.tar.gz",
+  "sdist_sha256": "0228d2936cba4d4143cfc87902c245a670f0326ada2f2ff006df74c6a5a1bbf0",
+  "upstream_head_observed_at_import": "acd38735ae1b23cf8b668e8947ccd833ca60ccac",
+  "license": "MIT",
+  "imported_for": [
+    "small-fixture novelty parity",
+    "small-fixture disruption parity",
+    "scientometrics formula reference"
+  ],
+  "production_runtime_dependency": false,
+  "imported_at": "2026-08-11"
+}

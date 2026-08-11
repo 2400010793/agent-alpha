@@ -1,0 +1,34 @@
+project:
+  name: paper-graph
+  version: 0.1.0
+storage:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  output_dir: outputs
+openalex_snapshot:
+  format: parquet
+  entities: [works, topics]
+  raw_dir: data/raw/openalex
+  candidate_dir: data/processed/openalex_quant
+  quant_threshold: 4
+  # The public Works snapshot was 724,970,323,127 bytes on 2026-06-26.
+  # Keep downloads manifest-pinned and submit full synchronization via Slurm.
+pipeline:
+  external_api_enabled: false
+  max_seed_papers: 0
+  top_k_similarity: 20
+  min_publication_year: 2006
+  year_weight: 0.2
+  include_unknown_year: false
+  parse_queue_path: outputs/paper_parse_queue.jsonl
+embedding:
+  primary_text_fields: [title, keywords]
+  auxiliary_text_fields: [abstract]
+  abstract_max_chars: 1500
+  primary_model: "title_keywords"
+  validation_model: "title_keywords_abstract"
+api:
+  search_path: "/api/search"
+  graph_path: "/api/graphs/{paper_id}"
+  paper_path: "/api/papers/{paper_id}"
+  max_graph_nodes: 40

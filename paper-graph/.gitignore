@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+node_modules/
+frontend/dist/
+
+# Local data and generated artifacts
+data/raw/*
+data/processed/*
+outputs/*
+logs/
+
+# Keep directory placeholders
+data/raw/.gitkeep
+data/processed/.gitkeep
+outputs/.gitkeep
+
+# Editors
+.vscode/*.log

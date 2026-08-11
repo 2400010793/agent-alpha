@@ -27,3 +27,27 @@ dist/
 # Editor and OS noise
 .DS_Store
 .vscode/
+
+# Monorepo project-local environments and generated content
+**/.venv/
+**/venv/
+**/node_modules/
+**/__pycache__/
+**/.pytest_cache/
+paper-digest-new2/data/
+paper-digest-new2/logs/
+paper-digest-new2/public/
+paper-digest-new2/reports/
+paper-digest-new2/aic_tests/
+paper-graph/data/
+paper-graph/logs/
+paper-graph/outputs/
+paper-graph/docs/generated/
+paper-graph/frontend/dist/
+paper-graph/frontend/*.tsbuildinfo
+paper-graph/.tools/
+paper-graph/src/*.egg-info/
+
+# SciNet is an independently versioned upstream dependency.  The pinned
+# revision is recorded in paper-graph/SCINET_VERSION.md.
+paper-graph/SciNet/

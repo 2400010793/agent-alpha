@@ -1,0 +1,2 @@
+import type { ApiPaper } from '../lib/api'
+export function SearchResults({ results, selected, onToggle }: { results: ApiPaper[]; selected: string[]; onToggle: (id: string) => void }) { return <div className="search-results-list">{results.map((paper) => <label key={paper.id}><input type="checkbox" checked={selected.includes(paper.id)} onChange={() => onToggle(paper.id)} />{paper.title}</label>)}</div> }

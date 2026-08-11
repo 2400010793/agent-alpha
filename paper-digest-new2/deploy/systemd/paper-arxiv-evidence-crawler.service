@@ -1,0 +1,18 @@
+[Unit]
+Description=Paper Digest new2 continuous arXiv evidence crawler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/gaozh/my-paper-digest-new2
+Environment=PROJECT_ROOT=/home/gaozh/my-paper-digest-new2
+Environment=PYTHON_BIN=/usr/bin/python3
+ExecStart=/usr/bin/env bash /home/gaozh/my-paper-digest-new2/deploy/bin/run_arxiv_evidence_crawler_continuous.sh
+StandardOutput=append:/home/gaozh/my-paper-digest-new2/logs/arxiv_evidence_crawler.service.log
+StandardError=append:/home/gaozh/my-paper-digest-new2/logs/arxiv_evidence_crawler.service.log
+Restart=on-failure
+RestartSec=5min
+
+[Install]
+WantedBy=default.target

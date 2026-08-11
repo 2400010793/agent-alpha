@@ -1,0 +1,16 @@
+[Unit]
+Description=Paper Digest new2 three-AI one-article hourly parser
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=0
+KillMode=process
+WorkingDirectory=/home/gaozh/my-paper-digest-new2
+Environment=PROJECT_ROOT=/home/gaozh/my-paper-digest-new2
+Environment=PYTHON_BIN=/home/gaozh/my-paper-digest-new2/.venv/bin/python
+Environment=ENV_FILE=/home/gaozh/my-paper-digest-new/deploy/systemd/paper.env
+ExecStart=/usr/bin/env bash /home/gaozh/my-paper-digest-new2/deploy/bin/run_three_ai_hourly_once.sh
+StandardOutput=append:/home/gaozh/my-paper-digest-new2/logs/three_ai_hourly.service.log
+StandardError=append:/home/gaozh/my-paper-digest-new2/logs/three_ai_hourly.service.log

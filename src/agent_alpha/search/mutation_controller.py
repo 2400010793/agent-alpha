@@ -74,6 +74,27 @@ def _failure_penalty(records: list[dict[str, Any]]) -> float:
     return penalty
 
 
+def _is_hard_stop(records: list[dict[str, Any]]) -> bool:
+    hard_modes = {"compile_failed", "field_leakage", "label_leakage", "unknown_field", "blocked_field", "render_validation_failed"}
+    for record in records:
+        modes = {str(item).casefold() for item in record.get("failure_modes", []) if str(item)}
+        if modes & hard_modes:
+            return True
+    return False
+
+
+def _search_value_from_score(score: float) -> float:
+    if score >= 0.10:
+        return 0.24
+    if score >= 0.05:
+        return 0.30
+    if score >= 0.02:
+        return 0.14
+    if score > 0:
+        return 0.04
+    return 0.0
+
+
 def _complexity_penalty(candidate: dict[str, Any]) -> float:
     prefix = candidate.get("prefix_expression")
     if prefix is None:
@@ -86,7 +107,7 @@ def _priority(candidate: dict[str, Any], records: list[dict[str, Any]]) -> float
     attempts = _safe_int(candidate.get("mutation_attempt") or candidate.get("mutation_attempts") or 0)
     near_elite = max(0.0, 1.0 - abs(0.08 - score) / 0.08) if score > 0 else 0.0
     reviewed_bonus = 0.01 if records else 0.0
-    return score + 0.2 * near_elite + reviewed_bonus - attempts * 0.04 - _complexity_penalty(candidate) - _failure_penalty(records)
+    return _search_value_from_score(score) + score + 0.1 * near_elite + reviewed_bonus - attempts * 0.04 - _complexity_penalty(candidate) - _failure_penalty(records)
 
 
 def _feedback_text(records: list[dict[str, Any]]) -> str:
@@ -122,7 +143,7 @@ def _route_prior(records: list[dict[str, Any]], focus: str) -> tuple[float, str]
     if any(term in text for term in ("compile", "complex", "too complex", "redundant", "cosmetic", "sparse", "non-finite", "mostly zero", "low_finite_ratio", "high_zero_ratio")):
         return (0.20, "failure suggests simplification") if focus == "refinement_simplification" else (0.0, "")
     if any(term in text for term in ("volume-only", "volume only", "false positive", "event")):
-        return (0.15, "failure suggests redefining the event trigger") if focus == "event_definition_mutation" else (0.0, "")
+        return (0.30, "failure suggests redefining the event trigger") if focus == "event_definition_mutation" else (0.0, "")
     if any(term in text for term in ("unstable", "oos", "turnover", "noisy", "raw_depth", "raw top-book", "liquidity", "spread")):
         return (0.15, "failure suggests market-state gating") if focus == "state_condition_mutation" else (0.0, "")
     if any(term in text for term in ("zscore", "rank(", "rank transform", "normalization", "scale", "safe_div", "raw subtraction")):
@@ -134,7 +155,7 @@ def _route_prior(records: list[dict[str, Any]], focus: str) -> tuple[float, str]
             return 0.10, "weak predictive signal suggests event redefinition"
         if focus == "response_shape_mutation":
             return 0.08, "weak predictive signal may need response-shape change"
-    return (0.05, "default high-frequency state gating prior") if focus == "state_condition_mutation" else (0.0, "")
+    return (0.02, "default high-frequency state gating prior") if focus == "state_condition_mutation" else (0.0, "")
 
 
 def _lineage_id(candidate: dict[str, Any]) -> str:
@@ -181,6 +202,20 @@ def _arm_bonus(arm_memory: Any, lineage_id: str, focus: str, *, exploration_c: f
     return bonus, {"n_trials": n_trials, "mean_reward": mean_reward, "failure_count": failure_count, "exploration_bonus": exploration}
 
 
+def _lineage_trial_count(arm_memory: Any, lineage_id: str) -> int:
+    if not isinstance(arm_memory, dict):
+        return 0
+    total = 0
+    prefix = f"{lineage_id}:"
+    for key, value in arm_memory.items():
+        if isinstance(value, dict) and str(key).startswith(prefix):
+            total += _safe_int(value.get("n_trials"), 0)
+    nested = arm_memory.get(lineage_id)
+    if isinstance(nested, dict):
+        total += sum(_safe_int(item.get("n_trials"), 0) for item in nested.values() if isinstance(item, dict))
+    return total
+
+
 def _feedback_by_candidate(feedback_records: list[dict[str, Any]] | None) -> dict[str, list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
     for record in feedback_records or []:
@@ -213,11 +248,17 @@ def select_mutation_plan(
         if getattr(state, "stopped", False):
             continue
         records = feedback.get(factor_id, [])
+        if _is_hard_stop(records):
+            continue
         parent_quality = _priority(candidate, records)
+        lineage_trials = _lineage_trial_count(arm_memory, lineage_id)
+        lineage_penalty = min(0.20, 0.025 * sqrt(lineage_trials)) if lineage_trials > 0 else 0.0
         for focus in MUTATION_FOCUSES:
             route_prior, route_reason = _route_prior(records, focus)
             arm_score, arm_stats = _arm_bonus(arm_memory, lineage_id, focus, exploration_c=exploration_c)
-            selector_score = parent_quality + route_prior + arm_score
+            focus_trials = _safe_int(arm_stats.get("n_trials"), 0)
+            focus_repetition_penalty = min(0.18, 0.04 * sqrt(focus_trials)) if focus_trials > 0 else 0.0
+            selector_score = parent_quality + route_prior + arm_score - lineage_penalty - focus_repetition_penalty
             scored.append(
                 (
                     selector_score,
@@ -232,6 +273,9 @@ def select_mutation_plan(
                         "route_reason": route_reason,
                         "arm_score": arm_score,
                         "arm_stats": arm_stats,
+                        "lineage_trials": lineage_trials,
+                        "lineage_penalty": lineage_penalty,
+                        "focus_repetition_penalty": focus_repetition_penalty,
                         "arm_id": _arm_id(lineage_id, focus),
                     },
                 )

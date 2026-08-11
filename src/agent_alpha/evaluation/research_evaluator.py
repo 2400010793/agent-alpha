@@ -30,7 +30,7 @@ def evaluate_research_quality(
     config = load_yaml(config_path)
     metrics = dict(metrics or {})
     impl = check_implementation(candidate, compile_result=compile_result, render_result=render_result)
-    stats = test_statistical_strength(metrics, config)
+    stats = test_statistical_strength(metrics, config, expected_direction=str(candidate.get("direction") or candidate.get("expected_direction") or "unknown"))
     risk = analyze_risk(metrics, config)
     econ = check_economic_logic(candidate, source_signal=source_signal)
 

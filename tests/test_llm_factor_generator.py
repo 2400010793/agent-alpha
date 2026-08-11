@@ -24,20 +24,6 @@ class FakeFactorClient:
         return self.payload
 
 
-class FakeMcpFactorClient(FakeFactorClient):
-    def __init__(self, payload: dict[str, Any]) -> None:
-        super().__init__(payload)
-        self.tool_names: list[str] = []
-        self.tool_role = ""
-
-    def complete_json_with_mcp_tools(self, messages: list[dict[str, Any]], *, tool_names: list[str], role: str, max_tool_rounds: int = 4) -> dict[str, Any]:
-        self.calls += 1
-        self.messages = messages
-        self.tool_names = tool_names
-        self.tool_role = role
-        return self.payload
-
-
 def _signal() -> dict[str, Any]:
     return {
         "signal_id": "sig_lob_imbalance",
@@ -84,18 +70,6 @@ def test_generate_factor_candidates_accepts_prefix_json_and_derives_expression(t
     assert candidate["expression"] == "safe_div((bidV1 - askV1), (bidV1 + askV1))"
     rendered = render_factor_file(candidate, tmp_path)
     py_compile.compile(str(rendered), doraise=True)
-
-
-def test_generate_factor_candidates_uses_mcp_tools_when_available() -> None:
-    prefix = ["safe_div", ["sub", "bidV1", "askV1"], ["add", "bidV1", "askV1"]]
-    client = FakeMcpFactorClient(_payload(prefix))
-
-    candidates = generate_factor_candidates_with_llm(_signal(), client, max_candidates=1)
-
-    assert len(candidates) == 1
-    assert client.tool_role == "The Implementer"
-    assert "market_data.list_fields" in client.tool_names
-    assert "factor.render_and_compile_candidate" in client.tool_names
 
 
 @pytest.mark.parametrize(

@@ -118,7 +118,6 @@ def build_prompt_context(
         "skill_rules": load_skill_rules(skill_name),
         "factor_candidate_format_checker": load_skill_rules("factor_candidate_format_checker") if task in {"signal_to_factor", "factor_mutation"} else "",
         "supported_fields_and_asl": load_skill_rules("supported_fields_and_asl") if task in {"signal_to_factor", "factor_mutation"} else "",
-        "mutation_memory": load_skill_rules("mutation_memory") if task == "factor_mutation" else "",
         "signal_format_checker": load_skill_rules("signal_format_checker") if task == "signal_mutation" else "",
         "shared_constraints": load_shared_constraints(task=task),
         "mechanism_prompts": load_mechanism_prompt_context(tags),

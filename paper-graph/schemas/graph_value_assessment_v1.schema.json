@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GraphValueAssessmentV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "assessment_id", "graph_id", "target_track", "score", "priority_tier", "recommended_action", "components", "penalties", "reasons", "policy_version"],
+  "properties": {
+    "schema_version": {"const": "graph_value_assessment_v1"},
+    "assessment_id": {"type": "string", "pattern": "^graphvalue:"},
+    "graph_id": {"type": "string", "minLength": 1},
+    "target_track": {"type": "string", "minLength": 1},
+    "data_contract_id": {"type": ["string", "null"]},
+    "score": {"type": "number", "minimum": 0, "maximum": 1},
+    "priority_tier": {"enum": ["high", "medium", "low", "defer"]},
+    "recommended_action": {"enum": ["BUILD_EVIDENCE", "NEEDS_DATA", "RESOLVE_CONTRADICTION", "RUN_FACTOR_RESEARCH", "RUN_FEATURE_OR_METHOD_RESEARCH", "REVIEW_RESEARCH_OPPORTUNITY"]},
+    "components": {"type": "object"},
+    "penalties": {"type": "object"},
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "policy_version": {"const": "graph_value_policy_v1"}
+  }
+}

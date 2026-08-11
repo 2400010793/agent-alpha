@@ -40,94 +40,65 @@ def render_prefix_to_python(node: Any) -> str:
     if _is_number(node):
         return repr(node)
     op, args = _prefix_op_args(node)
-    if op == "add":
-        return f"({render_prefix_to_python(args[0])} + {render_prefix_to_python(args[1])})"
-    if op == "sub":
-        return f"({render_prefix_to_python(args[0])} - {render_prefix_to_python(args[1])})"
-    if op == "mul":
-        return f"({render_prefix_to_python(args[0])} * {render_prefix_to_python(args[1])})"
-    if op == "div":
-        return f"({render_prefix_to_python(args[0])} / {render_prefix_to_python(args[1])})"
+    render = render_prefix_to_python
+    if op in {"add", "sub", "mul", "div"}:
+        symbol = {"add": "+", "sub": "-", "mul": "*", "div": "/"}[op]
+        return f"({render(args[0])} {symbol} {render(args[1])})"
     if op == "neg":
-        return f"(-{render_prefix_to_python(args[0])})"
+        return f"(-{render(args[0])})"
     if op == "safe_div":
-        return f"({render_prefix_to_python(args[0])} / ({render_prefix_to_python(args[1])} + eps))"
+        return f"({render(args[0])} / ({render(args[1])} + eps))"
     if op == "abs":
-        return f"({render_prefix_to_python(args[0])}).abs()"
+        return f"({render(args[0])}).abs()"
     if op == "clip":
-        return f"({render_prefix_to_python(args[0])}).clip(lower={render_prefix_to_python(args[1])}, upper={render_prefix_to_python(args[2])})"
+        return f"({render(args[0])}).clip(lower={render(args[1])}, upper={render(args[2])})"
     if op == "log1p":
-        return f"np.log1p({render_prefix_to_python(args[0])})"
+        return f"np.log1p({render(args[0])})"
     if op == "log":
-        return f"np.log(({render_prefix_to_python(args[0])}).abs() + eps)"
+        return f"np.log(({render(args[0])}).abs() + eps)"
     if op == "tanh":
-        return f"np.tanh({render_prefix_to_python(args[0])})"
+        return f"np.tanh({render(args[0])})"
     if op == "sign":
-        return f"np.sign({render_prefix_to_python(args[0])})"
+        return f"np.sign({render(args[0])})"
     if op == "rank":
-        return f"({render_prefix_to_python(args[0])}).rank(pct=True)"
+        return f"({render(args[0])}).rank(pct=True)"
     if op == "zscore":
-        return f"_zscore({render_prefix_to_python(args[0])}, {int(args[1]) if len(args) > 1 else 60})"
-    if op == "rolling_mean":
-        return f"({render_prefix_to_python(args[0])}).rolling({int(args[1])}, min_periods=1).mean()"
-    if op == "rolling_std":
-        return f"({render_prefix_to_python(args[0])}).rolling({int(args[1])}, min_periods=1).std()"
-    if op == "rolling_sum":
-        return f"({render_prefix_to_python(args[0])}).rolling({int(args[1])}, min_periods=1).sum()"
-    if op == "rolling_min":
-        return f"({render_prefix_to_python(args[0])}).rolling({int(args[1])}, min_periods=1).min()"
-    if op == "rolling_max":
-        return f"({render_prefix_to_python(args[0])}).rolling({int(args[1])}, min_periods=1).max()"
-    if op == "rolling_median":
-        return f"({render_prefix_to_python(args[0])}).rolling({int(args[1])}, min_periods=1).median()"
+        return f"_zscore({render(args[0])}, {int(args[1]) if len(args) > 1 else 60})"
+    rolling_methods = {
+        "rolling_mean": "mean", "rolling_std": "std", "rolling_sum": "sum",
+        "rolling_min": "min", "rolling_max": "max", "rolling_median": "median",
+    }
+    if op in rolling_methods:
+        return f"({render(args[0])}).rolling({int(args[1])}, min_periods=1).{rolling_methods[op]}()"
     if op == "rolling_rank":
-        return f"_rolling_rank({render_prefix_to_python(args[0])}, {int(args[1])})"
+        return f"_rolling_rank({render(args[0])}, {int(args[1])})"
     if op == "rolling_count":
-        return f"({render_prefix_to_python(args[0])}).astype(float).rolling({int(args[1])}, min_periods=1).sum()"
-    if op == "ewm_mean":
-        return f"({render_prefix_to_python(args[0])}).ewm(halflife={int(args[1])}, min_periods=1, adjust=True).mean()"
-    if op == "ewm_std":
-        return f"({render_prefix_to_python(args[0])}).ewm(halflife={int(args[1])}, min_periods=1, adjust=True).std()"
-    if op == "diff":
-        return f"({render_prefix_to_python(args[0])}).diff({int(args[1])})"
-    if op == "shift":
-        return f"({render_prefix_to_python(args[0])}).shift({int(args[1])})"
-    if op == "pct_change":
-        return f"({render_prefix_to_python(args[0])}).pct_change({int(args[1])})"
-    if op == "max":
-        return f"np.maximum({render_prefix_to_python(args[0])}, {render_prefix_to_python(args[1])})"
-    if op == "min":
-        return f"np.minimum({render_prefix_to_python(args[0])}, {render_prefix_to_python(args[1])})"
-    if op == "gt":
-        return f"({render_prefix_to_python(args[0])} > {render_prefix_to_python(args[1])})"
-    if op == "lt":
-        return f"({render_prefix_to_python(args[0])} < {render_prefix_to_python(args[1])})"
-    if op == "ge":
-        return f"({render_prefix_to_python(args[0])} >= {render_prefix_to_python(args[1])})"
-    if op == "le":
-        return f"({render_prefix_to_python(args[0])} <= {render_prefix_to_python(args[1])})"
-    if op == "eq":
-        return f"({render_prefix_to_python(args[0])} == {render_prefix_to_python(args[1])})"
-    if op == "neq":
-        return f"({render_prefix_to_python(args[0])} != {render_prefix_to_python(args[1])})"
-    if op == "and":
-        return f"(({render_prefix_to_python(args[0])}) & ({render_prefix_to_python(args[1])}))"
-    if op == "or":
-        return f"(({render_prefix_to_python(args[0])}) | ({render_prefix_to_python(args[1])}))"
+        return f"({render(args[0])}).astype(float).rolling({int(args[1])}, min_periods=1).sum()"
+    if op in {"ewm_mean", "ewm_std"}:
+        method = "mean" if op == "ewm_mean" else "std"
+        return f"({render(args[0])}).ewm(halflife={int(args[1])}, min_periods=1, adjust=True).{method}()"
+    if op in {"diff", "shift", "pct_change"}:
+        return f"({render(args[0])}).{op}({int(args[1])})"
+    if op in {"max", "min"}:
+        return f"np.{'maximum' if op == 'max' else 'minimum'}({render(args[0])}, {render(args[1])})"
+    comparison = {"gt": ">", "lt": "<", "ge": ">=", "le": "<=", "eq": "==", "neq": "!="}
+    if op in comparison:
+        return f"({render(args[0])} {comparison[op]} {render(args[1])})"
+    if op in {"and", "or"}:
+        return f"(({render(args[0])}) {'&' if op == 'and' else '|'} ({render(args[1])}))"
     if op == "where":
-        return f"pd.Series(np.where({render_prefix_to_python(args[0])}, {render_prefix_to_python(args[1])}, {render_prefix_to_python(args[2])}), index=df.index)"
-    if op == "rolling_corr":
-        return f"({render_prefix_to_python(args[0])}).rolling({int(args[2])}, min_periods=2).corr({render_prefix_to_python(args[1])})"
-    if op == "rolling_cov":
-        return f"({render_prefix_to_python(args[0])}).rolling({int(args[2])}, min_periods=2).cov({render_prefix_to_python(args[1])})"
+        return f"pd.Series(np.where({render(args[0])}, {render(args[1])}, {render(args[2])}), index=df.index)"
+    if op in {"rolling_corr", "rolling_cov"}:
+        method = "corr" if op == "rolling_corr" else "cov"
+        return f"({render(args[0])}).rolling({int(args[2])}, min_periods=2).{method}({render(args[1])})"
     if op == "rolling_beta":
-        return f"_rolling_beta({render_prefix_to_python(args[0])}, {render_prefix_to_python(args[1])}, {int(args[2])})"
-    if op == "div_mean":
-        return f"({render_prefix_to_python(args[0])} / ({render_prefix_to_python(args[1])} + eps)).rolling({int(args[2])}, min_periods=1).mean()"
-    if op == "div_std":
-        return f"({render_prefix_to_python(args[0])} / ({render_prefix_to_python(args[1])} + eps)).rolling({int(args[2])}, min_periods=1).std()"
+        return f"_rolling_beta({render(args[0])}, {render(args[1])}, {int(args[2])})"
+    if op in {"div_mean", "div_std"}:
+        method = "mean" if op == "div_mean" else "std"
+        return f"({render(args[0])} / ({render(args[1])} + eps)).rolling({int(args[2])}, min_periods=1).{method}()"
     if op == "vol_scale":
-        return f"({render_prefix_to_python(args[0])} / (({render_prefix_to_python(args[0])}).rolling({int(args[1])}, min_periods=1).std() + eps))"
+        value = render(args[0])
+        return f"({value} / (({value}).rolling({int(args[1])}, min_periods=1).std() + eps))"
     raise ValueError(f"unsupported prefix op: {op}")
 
 

@@ -63,6 +63,15 @@ def test_build_pool_record_preserves_lineage_generation_and_status() -> None:
     assert record.mechanism_tags == ["order_book_pressure"]
 
 
+def test_candidate_identity_is_scoped_to_research_context() -> None:
+    candidate = _candidate("spread", "bidV1 - askV1")
+    first = build_pool_record({**candidate, "research_run_id": "run_a"})
+    second = build_pool_record({**candidate, "research_run_id": "run_b"})
+
+    assert first.candidate_id != second.candidate_id
+    assert first.research_run_id == "run_a"
+
+
 def test_candidate_pool_add_avoids_duplicate_expression() -> None:
     pool = CandidatePool()
     first = pool.add(_candidate("spread_a", "bidV1 - askV1"))

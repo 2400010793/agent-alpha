@@ -1,0 +1,131 @@
+categories:
+  - id: prediction_residual
+    title_zh: 模型预测与残差
+    title_en: Model Prediction & Residual
+    original_derivation: 资产收益率、交易量或状态变量的结构化预测方程。
+    proxy_mapping: 实际观测值与模型预测值之间的残差或重构误差。
+    standard_operator: realized_value - predicted_value or reconstruction_error
+    keywords:
+      - residual
+      - reconstruction error
+      - prediction error
+      - forecast error
+      - fitted value
+      - predicted return
+      - regression
+      - beta
+      - factor model
+      - exposure
+      - return model
+      - 预测
+      - 残差
+      - 重构误差
+  - id: topology_manifold
+    title_zh: 拓扑几何与空间距离
+    title_en: Topological & Manifold Geometry
+    original_derivation: 高维点云的持久同调、流形结构或全局平衡态方程。
+    proxy_mapping: 资产偏离全局中心流形的空间距离或局部密度倒数。
+    standard_operator: -distance_to_manifold or zscore(local_density_score)
+    keywords:
+      - topology
+      - topological
+      - persistent homology
+      - manifold
+      - embedding
+      - distance
+      - density
+      - point cloud
+      - 拓扑
+      - 流形
+      - 空间距离
+  - id: continuous_functional
+    title_zh: 连续时间与泛函
+    title_en: Continuous-Time & Functional Calculus
+    original_derivation: 连续时间轴上的积分方程或泛函依赖关系。
+    proxy_mapping: 基于离散高频 K 线在时序窗口内的黎曼和近似。
+    standard_operator: ts_sum(weight_bar * variable_bar, window)
+    keywords:
+      - continuous time
+      - integral
+      - functional
+      - kernel
+      - stochastic calculus
+      - diffusion
+      - riemann
+      - 连续时间
+      - 积分
+      - 泛函
+  - id: high_order_tail_risk
+    title_zh: 高阶矩与风险
+    title_en: High-Order Moments & Asymptotics
+    original_derivation: 非线性随机过程的特征函数、资产收益率的渐近分布或尾部风险统计。
+    proxy_mapping: 基于高频时序样本拆分的非线性统计量或波动率非对称性。
+    standard_operator: ts_sum(pow(min(r, 0), 2), w) - ts_sum(pow(max(r, 0), 2), w)
+    keywords:
+      - higher moment
+      - skewness
+      - kurtosis
+      - tail risk
+      - asymptotic
+      - characteristic function
+      - downside
+      - upside
+      - 高阶矩
+      - 尾部风险
+      - 偏度
+      - 峰度
+  - id: network_spillover
+    title_zh: 网络拓扑与信息
+    title_en: Network Topology & Spillover
+    original_derivation: 供应链、持仓、交易关系或 VAR 系统构成的邻接矩阵与信息溢出指数。
+    proxy_mapping: 通过截面矩阵乘法将网络中心度转化为个股的动量传染风险暴露。
+    standard_operator: matrix_multiply(adjacency_matrix, return_vector)
+    keywords:
+      - network
+      - spillover
+      - adjacency
+      - centrality
+      - connectedness
+      - var system
+      - supply chain
+      - contagion
+      - 网络
+      - 溢出
+      - 邻接矩阵
+      - 中心度
+  - id: microstructure_game
+    title_zh: 微观结构与博弈
+    title_en: Microstructure & Game Theory
+    original_derivation: 做市商与知情交易者博弈下的一阶导数条件、订单流冲击或最优单量策略。
+    proxy_mapping: 在离散滚动窗口内，通过线性回归提取价格对订单流不平衡的敏感度。
+    standard_operator: ts_reg_beta(intraday_return, order_imbalance, window)
+    keywords:
+      - microstructure
+      - market maker
+      - informed trader
+      - order imbalance
+      - order flow
+      - limit order book
+      - game equilibrium
+      - 微观结构
+      - 博弈
+      - 订单流
+      - 做市商
+  - id: regime_hidden_state
+    title_zh: 机制切换与隐状态
+    title_en: Regime Switching & Hidden States
+    original_derivation: 马尔可夫状态转移概率矩阵与 Hamilton 滤波概率递推公式。
+    proxy_mapping: 当前观测值偏离均值时触发的隐状态后验概率得分。
+    standard_operator: sigmoid(zscore(macro_variable, window))
+    keywords:
+      - regime switching
+      - hidden state
+      - markov
+      - hamilton filter
+      - state transition
+      - posterior probability
+      - latent state
+      - 机制切换
+      - 隐状态
+      - 马尔可夫
+      - 状态转移

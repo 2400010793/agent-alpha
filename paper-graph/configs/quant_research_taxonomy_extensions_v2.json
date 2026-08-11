@@ -1,0 +1,91 @@
+{
+  "schema_version": "quant_research_taxonomy_extension_v1",
+  "taxonomy_version": "quant_research_topics_v2_candidate",
+  "status": "candidate",
+  "mode": "additive_only",
+  "inherits": "digest_quant_topics_v1_12_54",
+  "base_first_level_count": 12,
+  "base_second_level_count": 54,
+  "promotion_policy": {
+    "minimum_gold_examples_per_child": 2,
+    "minimum_hard_negatives_per_child": 1,
+    "minimum_precision": 0.9,
+    "requires_human_review": true
+  },
+  "add_first_levels": [
+    {
+      "id": "fundamental_corporate",
+      "label": "基本面与公司信息",
+      "children": {
+        "valuation_fundamentals": ["估值与基本面", "valuation ratio", "book-to-market", "earnings yield", "fundamental signal"],
+        "profitability_investment": ["盈利与投资", "profitability", "gross profits", "asset growth", "corporate investment"],
+        "earnings_announcements": ["盈利公告与业绩事件", "earnings announcement", "earnings surprise", "post-earnings announcement drift"],
+        "accounting_quality": ["会计质量与应计", "accrual", "accounting quality", "earnings quality"],
+        "corporate_actions": ["公司行动", "share repurchase", "stock split", "seasoned equity offering", "merger announcement"],
+        "credit_default": ["信用与违约", "credit spread", "default risk", "bankruptcy", "distance to default"],
+        "ownership_institutional": ["持股与机构行为", "institutional ownership", "mutual fund holdings", "insider trading", "ownership structure"]
+      }
+    },
+    {
+      "id": "behavioral_information",
+      "label": "行为与信息信号",
+      "children": {
+        "investor_attention": ["投资者关注", "investor attention", "search volume", "attention shock"],
+        "sentiment_narratives": ["情绪与叙事", "investor sentiment", "market sentiment", "financial narrative"],
+        "news_text_signals": ["新闻与文本信号", "financial news", "news sentiment", "textual signal", "overnight news"],
+        "analyst_forecasts": ["分析师预测", "analyst forecast", "earnings forecast revision", "price target"],
+        "behavioral_biases": ["行为偏差", "disposition effect", "overreaction", "underreaction", "belief disagreement"],
+        "crowding_herding": ["拥挤与羊群行为", "crowded trade", "herding", "investor crowding"]
+      }
+    },
+    {
+      "id": "macro_cross_asset",
+      "label": "宏观与跨资产",
+      "children": {
+        "macroeconomic_signals": ["宏观经济信号", "macroeconomic predictor", "business cycle", "macro factor"],
+        "interest_rates_bonds": ["利率与债券", "interest rate", "yield curve", "bond return", "term premium"],
+        "foreign_exchange": ["外汇市场", "foreign exchange", "exchange rate", "currency return"],
+        "commodities_energy": ["商品与能源", "commodity futures", "oil price", "energy market", "commodity return"],
+        "cross_asset_allocation": ["跨资产配置", "cross-asset", "multi-asset allocation", "asset allocation"],
+        "monetary_policy": ["货币政策", "monetary policy", "central bank", "policy surprise"],
+        "inflation_growth": ["通胀与增长", "inflation", "economic growth", "growth expectation"]
+      }
+    },
+    {
+      "id": "research_methods_data",
+      "label": "研究方法与数据质量",
+      "children": {
+        "causal_inference": ["因果推断", "causal inference", "difference-in-differences", "instrumental variable", "regression discontinuity"],
+        "econometric_testing": ["计量检验", "econometric test", "endogeneity test", "stationarity test", "cointegration test"],
+        "backtest_validation": ["回测与样本外验证", "walk-forward", "double out-of-sample", "backtest overfitting", "purged cross-validation"],
+        "factor_multiple_testing": ["因子多重检验", "factor zoo", "multiple testing", "false discovery rate", "data snooping"],
+        "data_quality_bias": ["数据质量与偏差", "survivorship bias", "look-ahead bias", "data leakage", "point-in-time data"],
+        "reproducibility_benchmarks": ["复现与基准", "replication study", "reproducibility", "benchmark dataset", "benchmark protocol"]
+      }
+    },
+    {
+      "id": "digital_assets_market_design",
+      "label": "数字资产与链上市场设计",
+      "children": {
+        "crypto_spot_microstructure": ["数字资产现货微观结构", "crypto microstructure", "bitcoin market microstructure", "cryptocurrency trading"],
+        "defi_amm_liquidity": ["DeFi 与自动做市", "automated market maker", "decentralized exchange", "liquidity pool", "impermanent loss"],
+        "blockchain_ordering_mev": ["区块排序与 MEV", "maximal extractable value", "miner extractable value", "transaction ordering", "execution ticket"],
+        "stablecoins_tokenomics": ["稳定币与代币机制", "stablecoin", "tokenomics", "tether minting", "token supply"],
+        "onchain_network_flows": ["链上网络与资金流", "on-chain flow", "wallet network", "blockchain transaction network"],
+        "crypto_market_manipulation": ["数字资产操纵与清算", "wash trading", "crypto manipulation", "liquidation cascade", "pump and dump"]
+      }
+    },
+    {
+      "id": "market_institutions_regulation",
+      "label": "交易制度与市场监管",
+      "children": {
+        "auctions_open_close": ["集合竞价与开收盘", "opening auction", "closing auction", "call auction", "price auction"],
+        "tick_size_price_limits": ["最小报价与涨跌停", "tick size", "price limit", "limit up", "limit down"],
+        "fragmentation_latency": ["市场分割与延迟", "market fragmentation", "latency arbitrage", "colocation", "smart order routing"],
+        "short_sale_constraints": ["卖空与套利约束", "short-sale constraint", "short selling ban", "limits to arbitrage"],
+        "trading_halts": ["停牌与熔断", "trading halt", "circuit breaker", "volatility interruption"],
+        "market_regulation": ["市场规则与监管", "market regulation", "trading rule", "market design", "regulatory change"]
+      }
+    }
+  ]
+}

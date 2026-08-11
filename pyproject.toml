@@ -7,6 +7,8 @@ dependencies = [
   "PyYAML",
   "requests",
   "numpy",
+  "pandas",
+  "pyarrow",
   "pypdf",
 ]
 

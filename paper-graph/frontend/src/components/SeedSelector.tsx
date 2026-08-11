@@ -1,0 +1,1 @@
+export function SeedSelector({ selected, onBuild, building = false }: { selected: string[]; onBuild: () => void; building?: boolean }) { return <div className="seed-selector"><span>{selected.length} seed papers selected</span><button disabled={!selected.length || building} onClick={onBuild}>{building ? 'Building…' : 'Build Seed Map'}</button></div> }

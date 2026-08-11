@@ -178,7 +178,7 @@ def prefix_to_expression(node: Any) -> str:
         return f"ewma({prefix_to_expression(args[0])}, {int(args[1])})"
     if op == "ewm_std":
         return f"ewm_std({prefix_to_expression(args[0])}, {int(args[1])})"
-    if op in {"rolling_corr", "rolling_cov", "rolling_beta", "div_mean", "div_std"}:
+    if op in TWO_INPUT_WINDOW_OPS:
         return f"{op}({prefix_to_expression(args[0])}, {prefix_to_expression(args[1])}, {int(args[2])})"
     if op == "abs":
         return f"abs({prefix_to_expression(args[0])})"
@@ -198,18 +198,9 @@ def prefix_to_expression(node: Any) -> str:
         return f"max({prefix_to_expression(args[0])}, {prefix_to_expression(args[1])})"
     if op == "min":
         return f"min({prefix_to_expression(args[0])}, {prefix_to_expression(args[1])})"
-    if op == "gt":
-        return f"({prefix_to_expression(args[0])} > {prefix_to_expression(args[1])})"
-    if op == "lt":
-        return f"({prefix_to_expression(args[0])} < {prefix_to_expression(args[1])})"
-    if op == "ge":
-        return f"({prefix_to_expression(args[0])} >= {prefix_to_expression(args[1])})"
-    if op == "le":
-        return f"({prefix_to_expression(args[0])} <= {prefix_to_expression(args[1])})"
-    if op == "eq":
-        return f"({prefix_to_expression(args[0])} == {prefix_to_expression(args[1])})"
-    if op == "neq":
-        return f"({prefix_to_expression(args[0])} != {prefix_to_expression(args[1])})"
+    comparison = {"gt": ">", "lt": "<", "ge": ">=", "le": "<=", "eq": "==", "neq": "!="}
+    if op in comparison:
+        return f"({prefix_to_expression(args[0])} {comparison[op]} {prefix_to_expression(args[1])})"
     if op == "and":
         return f"({prefix_to_expression(args[0])} & {prefix_to_expression(args[1])})"
     if op == "or":

@@ -83,6 +83,17 @@ def test_strong_rankic_valid_implementation_and_economic_rationale_accepts_candi
     assert "rankic_passed_threshold" in review["good_patterns"]
 
 
+def test_strong_rankic_with_wrong_declared_direction_requires_revision() -> None:
+    review = evaluate_research_quality(
+        _candidate(direction="positive"),
+        {**STRONG_METRICS, "daily_rankic": -0.2},
+        compile_result={"ok": True},
+    )
+
+    assert review["decision"] == "revise"
+    assert any("direction_mismatch" in item for item in review["failure_modes"])
+
+
 def test_build_feedback_memory_outputs_good_bad_revise_labels() -> None:
     good = evaluate_research_quality(_candidate(), STRONG_METRICS, compile_result={"ok": True})
     bad = evaluate_research_quality(_candidate(), STRONG_METRICS, compile_result={"ok": False})

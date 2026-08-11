@@ -1,0 +1,273 @@
+defaults:
+  user_agent: "factor-study-paper-bot/1.0"
+  request_timeout_sec: 20
+  source_timeout_sec: 20
+  max_items_per_source: 100
+  latest_limit: 0
+  max_age_days: 365
+  keywords:
+    - microstructure
+    - price_discovery
+    - price discovery
+    - price formation
+    - information asymmetry
+    - information-driven trading
+    - liquidity_provision
+    - liquidity provision
+    - liquidity demand
+    - liquidity supply
+    - liquidity resiliency
+    - liquidity resilience
+    - book_pressure_gradient
+    - order flow
+    - order-flow
+    - order-flow imbalance
+    - order imbalance
+    - order flow imbalance
+    - order flow toxicity
+    - quote imbalance
+    - queue imbalance
+    - depth imbalance
+    - depth profile
+    - order book shape
+    - order book slope
+    - book slope
+    - limit order
+    - market order
+    - order cancellation
+    - order replenishment
+    - hidden_liquidity
+    - hidden liquidity
+    - hidden orders
+    - iceberg order
+    - dark liquidity
+    - trade_toxicity
+    - trade toxicity
+    - informed trading
+    - adverse selection
+    - execution risk
+    - trading cost
+    - order book
+    - limit order book
+    - market depth
+    - bid-ask spread
+    - quoted spread
+    - effective spread
+    - liquidity imbalance
+    - liquidity risk
+    - market liquidity
+    - transaction costs
+    - execution cost
+    - optimal execution
+    - price impact
+    - market impact
+    - signed volume
+    - signed order flow
+    - signed trade
+    - trade sign
+    - trade arrival
+    - order arrival
+    - order cancellation rate
+    - Hawkes process
+    - VPIN
+    - intraday seasonality
+    - time-of-day effect
+    - volatility clustering
+    - realized volatility
+    - volatility shock
+    - volatility jump
+    - short-term reversal
+    - return reversal
+    - price continuation
+    - momentum effect
+    - price-volume
+    - trading volume
+    - volume shock
+    - volume-return
+    - intraday
+    - market making
+    - backtesting
+    - mean reversion
+    - walk-forward
+    - out-of-sample
+    - machine learning
+
+
+sources:
+  - id: arxiv_qf
+    type: rss
+    enabled: true
+    url: "https://rss.arxiv.org/rss/q-fin"
+    source_name: "arXiv q-fin"
+    source_type: "paper"
+    max_items: 1000
+    max_age_days: 730
+
+  - id: arxiv_stat_ml
+    type: rss
+    enabled: true
+    url: "https://rss.arxiv.org/rss/stat.ML"
+    source_name: "arXiv stat.ML"
+    source_type: "paper"
+    max_items: 1000
+    max_age_days: 730
+
+  # arXiv: econometrics; macro cycles, asset-pricing risk premia, and empirical/econometric models.
+  - id: arxiv_econ_em
+    type: rss
+    enabled: true
+    url: "https://rss.arxiv.org/rss/econ.EM"
+    source_name: "arXiv econ.EM (Econometrics)"
+    source_type: "paper"
+    max_items: 1000
+    max_age_days: 730
+
+  - id: ssrn_jfe
+    type: rss
+    enabled: false
+    url: "https://rss.app/feeds/PjfjxZ6joDSXIBKL.xml"
+    source_name: "SSRN JFE"
+    source_type: "paper"
+
+  - id: quantstart
+    type: rss
+    enabled: false
+    url: "https://www.quantstart.com/articles/rss/"
+    source_name: "QuantStart"
+    source_type: "blog"
+
+  # RePEc NEP: market microstructure papers; highest-fit expansion for HFT, LOB, liquidity, and trading microstructure.
+  - id: repec_nep_mst
+    type: rss
+    enabled: true
+    url: "https://nep.repec.org/rss/nep-mst.rss.xml"
+    source_name: "RePEc NEP Market Microstructure"
+    source_type: "paper"
+    use_proxy: false
+    max_items: 80
+    max_age_days: 730
+
+  # RePEc NEP: computational economics/finance; useful for quantitative methods, algorithmic modelling, and ML-adjacent finance papers.
+  - id: repec_nep_cmp
+    type: rss
+    enabled: false
+    url: "https://nep.repec.org/rss/nep-cmp.rss.xml"
+    source_name: "RePEc NEP Computational Economics"
+    source_type: "paper"
+
+  # RePEc NEP: big data and high-dimensional econometrics; adjacent source for large-scale market data and empirical modelling.
+  - id: repec_nep_big
+    type: rss
+    enabled: false
+    url: "https://nep.repec.org/rss/nep-big.rss.xml"
+    source_name: "RePEc NEP Big Data"
+    source_type: "paper"
+
+  # RePEc NEP: AI applications in economics/finance; broader source for machine learning and AI-based financial research.
+  - id: repec_nep_ain
+    type: rss
+    enabled: false
+    url: "https://nep.repec.org/rss/nep-ain.rss.xml"
+    source_name: "RePEc NEP AI"
+    source_type: "paper"
+
+  # RePEc NEP: corporate finance; lower-priority broad source for cross-comparison, may pass filters only occasionally.
+  - id: repec_nep_cfn
+    type: rss
+    enabled: false
+    url: "https://nep.repec.org/rss/nep-cfn.rss.xml"
+    source_name: "RePEc NEP Corporate Finance"
+    source_type: "paper"
+
+  # NBER
+  - id: nber_full
+    type: rss
+    enabled: true
+    url: "https://www.nber.org/rss/new.xml"
+    source_name: "NBER Working Papers"
+    source_type: "paper"
+    max_items: 80
+    max_age_days: 730
+
+  # Journal: Quantitative Finance
+  # Focus: Limit Order Book (LOB) modeling, high-frequency algorithms, and quantitative strategies.
+  - id: journal_quantitative_finance
+    type: rss
+    enabled: true
+    url: "https://www.tandfonline.com/feed/rss/rquf20"
+    source_name: "Journal: Quantitative Finance"
+    source_type: "paper"
+    max_items: 100
+    max_age_days: 730
+
+  # QuantConnect Research Blog
+  # Focus: Alternative data, order flow features, and multi-factor machine learning backtests.
+  - id: quantconnect_blog
+    type: sitemap
+    enabled: true
+    url: "https://www.quantconnect.com/research.posts.sitemap.xml"
+    source_name: "QuantConnect Blog"
+    source_type: "blog"
+    max_items: 80
+    max_age_days: 730
+
+  # Quantpedia Blog
+  - id: quantpedia_blog
+    type: rss
+    enabled: true
+    url: "https://quantpedia.com/blog/feed/"
+    source_name: "Quantpedia Blog"
+    source_type: "research_blog"
+    max_items: 80
+    max_age_days: 730
+
+  # Alpha Architect: practitioner-friendly summaries of academic finance papers and replicated factor research.
+  - id: alpha_architect
+    type: rss
+    enabled: true
+    url: "https://alphaarchitect.com/feed/"
+    source_name: "Alpha Architect"
+    source_type: "research_blog"
+    max_items: 80
+    max_age_days: 730
+
+  # Quantocracy (Quant Mashup)
+  - id: quantocracy_mashup
+    type: rss
+    enabled: true
+    url: "https://quantocracy.com/feed/"
+    source_name: "Quantocracy"
+    source_type: "blog_mashup"
+    use_proxy: false
+    max_age_days: 730
+    local_file: "/mnt/lustre3/home/gaozh/my-paper-digest-new2/data/source_cache/quantocracy.xml"
+
+  # Quantified Strategies: intraday effects, momentum factors, and strategy backtests.
+  - id: quantified_strategies
+    type: rss
+    enabled: false
+    url: "https://www.quantifiedstrategies.com/feed/"
+    source_name: "Quantified Strategies"
+    source_type: "blog"
+    max_items: 80
+
+  # Internal Quant Wiki RSS
+  - id: quant_wiki_internal
+    type: rss
+    enabled: true
+    url: "http://10.9.22.11:7888/feed.xml"
+    source_name: "Quant Wiki Internal"
+    source_type: "blog"
+    max_items: 100
+    max_age_days: 730
+
+  # Taylor & Francis Online
+  - id: taylor_francis_online
+    type: rss
+    enabled: false
+    url: "https://rss.app/feeds/DqCiuaHJaj0FOowM.xml"
+    source_name: "Taylor & Francis Online"
+    source_type: "paper"
+
+
+

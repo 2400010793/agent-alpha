@@ -68,12 +68,7 @@ def is_hard_failure(review: dict[str, Any] | None) -> bool:
 
 
 def should_freeze_for_library(review: dict[str, Any], *, thresholds: LifecycleThresholds = LifecycleThresholds()) -> bool:
-    if str(review.get("decision") or "") != "accept":
-        return False
-    if is_hard_failure(review):
-        return False
-    score = factor_score(review_metrics(review))
-    return score is not None and score >= thresholds.elite_score
+    return False
 
 
 def child_exceeds_parent(
@@ -108,8 +103,8 @@ def parent_should_enter_library(
     *,
     thresholds: LifecycleThresholds = LifecycleThresholds(),
 ) -> bool:
-    """Admit only the challenged parent, never the child challenger."""
-    return parent_should_freeze_after_children(parent_review, child_reviews, thresholds=thresholds)
+    """Library admission is handled by measured performance and dedupe only."""
+    return False
 
 
 def best_child_for_continuation(
@@ -172,19 +167,17 @@ def mutation_parent_status(review: dict[str, Any], *, thresholds: LifecycleThres
     if is_hard_failure(review):
         return "invalid_stopped"
     score = factor_score(review_metrics(review))
-    if should_freeze_for_library(review, thresholds=thresholds):
-        return "elite_frozen"
     if score is None:
         return "weak_retry"
     if score < thresholds.bad_score:
         return "weak_retry"
     if score < thresholds.elite_score:
         return "promising_continue"
-    return "elite_candidate_needs_accept_review"
+    return "elite_continue"
 
 
 def eligible_for_mutation(review: dict[str, Any], *, thresholds: LifecycleThresholds = LifecycleThresholds()) -> bool:
-    return mutation_parent_status(review, thresholds=thresholds) in {"promising_continue", "weak_retry"}
+    return mutation_parent_status(review, thresholds=thresholds) in {"elite_continue", "promising_continue", "weak_retry"}
 
 
 def mutation_attempt_count(candidate: dict[str, Any], state: LineageState | None = None) -> int:

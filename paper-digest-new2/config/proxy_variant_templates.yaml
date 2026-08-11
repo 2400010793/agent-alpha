@@ -1,0 +1,400 @@
+version: 1
+operators:
+  - _num
+  - _safe_div
+  - _rolling_mean
+  - _rolling_sum
+  - _rolling_std
+  - _rolling_cov
+  - _rolling_corr
+  - _rolling_beta
+  - _rolling_integral
+  - _ewm_integral
+  - _zscore
+  - _log
+  - _abs
+  - _clip
+  - _mid_price
+  - _mid_log_return
+  - _book_imbalance
+  - _bid_depth
+  - _ask_depth
+  - _spread
+  - _volume_weighted
+  - _diff
+  - _lob_vector_zdistance
+  - _lob_pressure
+  - _exp_decay
+  - _decayed_interaction
+  - _ewma
+  - _coherence
+  - _path_ratio
+  - _space_decay
+  - _microstructure_noise_trace
+  - _cost_adjusted_score
+  - _no_trade_band_distance
+  - _first
+  - _expanding_max
+  - _expanding_min
+  - _session_open
+  - _cumsum
+variant_forms:
+  base: true
+  rolling_mean_zscore: true
+  zscore_120: true
+  depth_overrides: true
+templates:
+  - id: paper_hf_distance_decayed_lob_pressure
+    priority: 5
+    requires_any_flag: [obi, lob_state, depth_pressure]
+    formula: _zscore(_lob_pressure(df, 5, 0.5), 60)
+    proxy_fidelity: high
+    proxy_loss: Uses a continuous distance-decay kernel across visible five-level prices and sizes; hidden liquidity, order IDs, and venue-specific queue priority remain unobserved.
+  - id: paper_hf_decayed_flow_lob_convolution
+    priority: 5
+    requires_flags: [signed_flow, return, obi]
+    formula: _zscore(_safe_div(_decayed_interaction(_num(df, "volume") * _lob_pressure(df, 5, 0.5), _mid_log_return(df), 20), abs(_spread(df)) + 1e-6), 60)
+    proxy_fidelity: medium_high
+    proxy_loss: Applies a causal exponential kernel to the interaction of signed flow, distance-decayed LOB pressure, and return, then scales by visible spread; it cannot recover exact event-time order matching.
+  - id: paper_hf_lob_vector_zdistance
+    priority: 5
+    requires_any_flag: [lob_vector_divergence]
+    formula: _zscore(_lob_vector_zdistance(df, 10, 60), 60)
+    proxy_fidelity: high
+    proxy_loss: Keeps the high-dimensional LOB vector-distance idea using 10-level price/volume z-distance; hidden liquidity and event timing remain missing.
+    stop_after_match: true
+  - id: paper_hf_lob_volume_zdistance
+    priority: 5
+    requires_any_flag: [lob_vector_divergence]
+    formula: _zscore(_lob_vector_zdistance(df, 5, 60), 60)
+    proxy_fidelity: medium_high
+    proxy_loss: Uses top-5 LOB vector distance as a cheaper LOD proxy; loses deeper levels and full covariance geometry.
+    stop_after_match: true
+  - id: paper_hf_micro_noise_trace
+    priority: 5
+    requires_any_flag: [microstructure_noise_covariance]
+    formula: _zscore(_microstructure_noise_trace(df, 60), 60)
+    proxy_fidelity: high
+    proxy_loss: Approximates a covariance trace with rolling variances of mid-return, spread change, OBI change and depth change; no full matrix eigensystem.
+    stop_after_match: true
+  - id: paper_hf_signed_flow_price_impact
+    requires_flags: [signed_flow, return]
+    formula: _zscore(_rolling_sum(_num(df, "volume") * _mid_log_return(df), 20), 60)
+    proxy_fidelity: medium_high
+    proxy_loss: Uses signed local volume directly as active flow; assumes the volume sign convention is stable.
+  - id: paper_hf_signed_flow_pressure
+    requires_flags: [signed_flow]
+    formula: _zscore(_rolling_sum(_num(df, "volume"), 20), 60)
+    proxy_fidelity: medium_high
+    proxy_loss: Uses signed local volume directly as net active flow; sign convention must be stable across data sources.
+  - id: paper_hf_signed_notional_impact
+    requires_flags: [notional_flow, return]
+    formula: _zscore(_rolling_sum(_num(df, "money") * _mid_log_return(df), 20), 60)
+    proxy_fidelity: high
+    proxy_loss: Uses signed local traded notional directly; assumes money sign follows active buy/sell direction.
+  - id: paper_hf_notional_imbalance
+    requires_flags: [notional_flow]
+    formula: _zscore(_safe_div(_rolling_sum(_num(df, "money"), 20), _rolling_sum(abs(_num(df, "money")), 20) + 1e-6), 60)
+    proxy_fidelity: high
+    proxy_loss: Windowed signed-notional imbalance is locally computable; depends on stable money sign convention.
+  - id: paper_hf_trade_event_intensity
+    requires_flags: [trade_event]
+    formula: _zscore(_rolling_sum(abs(np.sign(_num(df, "volume"))), 20), 60)
+    proxy_fidelity: medium
+    proxy_loss: Counts non-zero signed-volume ticks as events; collapsed prints and hidden order arrivals are not recovered.
+  - id: paper_hf_order_size_pressure
+    requires_flags: [order_size]
+    formula: _zscore(_rolling_sum(abs(_num(df, "volume")), 20), 60)
+    proxy_fidelity: medium_high
+    proxy_loss: Uses absolute signed volume for local event size; cannot split aggregated ticks into child orders.
+  - id: paper_hf_queue_change_pressure
+    requires_flags: [queue_change]
+    formula: _zscore(_rolling_sum(_diff(_bid_depth(df, 5)) - _diff(_ask_depth(df, 5)), 20), 60)
+    proxy_fidelity: medium
+    proxy_loss: Uses visible top-5 depth changes; cannot identify order IDs, queue priority, hidden liquidity, or price-level shifts.
+  - id: paper_hf_depth_replenishment_pressure
+    requires_flags: [replenishment]
+    formula: _zscore(_rolling_sum(_clip(_diff(_bid_depth(df, 5)), 0, np.inf) - _clip(_diff(_ask_depth(df, 5)), 0, np.inf), 20), 60)
+    proxy_fidelity: medium
+    proxy_loss: Positive visible depth changes proxy replenishment; order-add events and price-level alignment are not observed.
+  - id: paper_hf_depth_depletion_pressure
+    requires_flags: [depletion]
+    formula: _zscore(_rolling_sum(_clip(-_diff(_bid_depth(df, 5)), 0, np.inf) - _clip(-_diff(_ask_depth(df, 5)), 0, np.inf), 20), 60)
+    proxy_fidelity: low_medium
+    proxy_loss: Visible depth drops weakly proxy cancellation/depletion pressure; trades and price-level shifts remain mixed in.
+  - id: paper_hf_online_candle_geometry
+    requires_flags: [candlestick]
+    formula: _zscore(_safe_div(abs(_num(df, "close") - _first(_num(df, "close"))), _expanding_max(_num(df, "close")) - _expanding_min(_num(df, "close")) + 1e-6), 60)
+    proxy_fidelity: medium
+    proxy_loss: Uses online candle body/range geometry observed up to t; does not use finalized daily OHLC.
+  - id: paper_hf_open_to_now_return
+    requires_flags: [session_open, return]
+    formula: _zscore(_safe_div(_num(df, "close"), _session_open(df) + 1e-6) - 1.0, 60)
+    proxy_fidelity: high
+    proxy_loss: Uses joined daily_open as official session open when available; falls back to first local tick close.
+  - id: paper_hf_session_open_dislocation
+    requires_flags: [session_open]
+    excludes_flags: [return]
+    formula: _zscore(_num(df, "close") - _session_open(df), 60)
+    proxy_fidelity: medium_high
+    proxy_loss: Measures displacement from joined daily_open when available; falls back to first local tick close.
+  - id: paper_hf_online_vwap_dislocation
+    requires_flags: [online_vwap]
+    formula: _zscore(_num(df, "close") - _safe_div(_cumsum(abs(_num(df, "money"))), _cumsum(abs(_num(df, "volume"))) + 1e-6), 60)
+    proxy_fidelity: high
+    proxy_loss: Computes online VWAP from absolute signed notional over absolute signed volume observed up to t.
+  - id: paper_hf_online_range_position
+    requires_flags: [online_range]
+    formula: _zscore(_safe_div(_num(df, "close") - _expanding_min(_num(df, "close")), _expanding_max(_num(df, "close")) - _expanding_min(_num(df, "close")) + 1e-6), 60)
+    proxy_fidelity: medium
+    proxy_loss: Uses intraday high/low observed so far only; avoids full-session look-ahead.
+  - id: paper_hf_online_drawdown
+    requires_flags: [online_range]
+    formula: _zscore(_safe_div(_expanding_max(_num(df, "close")) - _num(df, "close"), _expanding_max(_num(df, "close")) + 1e-6), 60)
+    proxy_fidelity: medium
+    proxy_loss: Drawdown is measured from observed-so-far high, not final daily high.
+  - id: paper_hf_inventory_pressure_return
+    requires_flags: [inventory, return]
+    formula: _zscore(_rolling_sum(_num(df, "money"), 20) * _mid_log_return(df), 60)
+    proxy_fidelity: low
+    proxy_loss: Uses rolling traded notional as a weak inventory/position pressure proxy; actual dealer or portfolio inventory is unobserved.
+  - id: paper_hf_adverse_selection_pressure
+    requires_flags: [adverse_selection]
+    formula: _zscore(_spread(df) * _rolling_sum(abs(_mid_log_return(df)) * _num(df, "volume"), 20), 60)
+    proxy_fidelity: low_medium
+    proxy_loss: Combines spread with volume-weighted absolute return as an adverse-selection/toxicity proxy; lacks trader identity and information labels.
+  - id: paper_hf_inventory_book_pressure
+    requires_flags: [inventory, obi]
+    formula: _zscore(_rolling_sum(_book_imbalance(df, 5) * _num(df, "volume"), 20), 60)
+    proxy_fidelity: low_medium
+    proxy_loss: Uses persistent volume-weighted book imbalance as an inventory-pressure proxy; true dealer inventory and position constraints are unobserved.
+  - id: paper_hf_obi_conditioned_volume_weighted_return
+    requires_flags: [return, volume, obi]
+    formula: _zscore(_volume_weighted(_mid_log_return(df) * _book_imbalance(df, 3), _num(df, "volume"), 5), 20)
+    proxy_fidelity: medium
+    proxy_loss: Preserves return-volume-conditioning structure but uses visible top-book OBI and fixed windows.
+  - id: paper_hf_obi_return_pressure
+    requires_flags: [return, obi]
+    formula: _zscore(_rolling_sum(_mid_log_return(df) * _book_imbalance(df, 5), 20), 60)
+    proxy_fidelity: medium
+    proxy_loss: Keeps order-book-conditioned return pressure using visible five-level depth; loses hidden liquidity and event-time queue state.
+  - id: paper_hf_volume_weighted_return
+    requires_flags: [return, volume]
+    formula: _zscore(_volume_weighted(_mid_log_return(df), _num(df, "volume"), 5), 20)
+    proxy_fidelity: medium
+    proxy_loss: Classic volume-weighted mid-return proxy; loses model-specific latent variables and event timing.
+  - id: paper_hf_liquidity_cost_adjusted_flow_return
+    requires_flags: [return, volume, spread]
+    formula: _zscore(_safe_div(_rolling_sum(_mid_log_return(df) * _num(df, "volume"), 20), _rolling_mean(_spread(df), 60) + 1e-6), 60)
+    proxy_fidelity: medium
+    proxy_loss: Preserves return-volume signal scaled by visible execution cost; true realized impact and fees are not observed.
+  - id: paper_hf_vol_scaled_return
+    requires_flags: [return, volatility]
+    formula: _zscore(_safe_div(_rolling_sum(_mid_log_return(df), 20), _rolling_std(_mid_log_return(df), 60) + 1e-6), 20)
+    proxy_fidelity: medium
+    proxy_loss: Keeps return divided by realized volatility but drops cross-asset state and optimizer outputs.
+  - id: paper_hf_volume_volatility_state
+    requires_flags: [volume, volatility]
+    formula: _zscore(_rolling_sum(_num(df, "volume"), 20) * _rolling_std(_mid_log_return(df), 60), 120)
+    proxy_fidelity: medium
+    proxy_loss: Keeps joint activity-volatility state with local volume and realized mid-return volatility; no latent regime model is fitted.
+  - id: paper_hf_spread_adjusted_return
+    requires_flags: [spread, return]
+    formula: _zscore(_mid_log_return(df) - _rolling_mean(_mid_log_return(df), 20) - _spread(df), 20)
+    proxy_fidelity: medium
+    proxy_loss: Keeps spread/friction adjustment using top-of-book spread; loses venue/event detail.
+  - id: paper_hf_microprice_return_dislocation
+    requires_flags: [efficient_price, return]
+    formula: _zscore(_mid_log_return(df) * _safe_div((_num(df, "askP1") * _num(df, "bidV1") + _num(df, "bidP1") * _num(df, "askV1")), (_num(df, "askV1") + _num(df, "bidV1") + 1e-6)) - _mid_price(df), 60)
+    proxy_fidelity: medium_high
+    proxy_loss: Uses top-of-book microprice dislocation interacted with return; cannot recover a structural efficient-price filter.
+  - id: paper_hf_noise_adjusted_return
+    requires_flags: [noise_scale, return]
+    formula: _zscore(_safe_div(_mid_log_return(df), _rolling_std(_mid_log_return(df) - _rolling_mean(_mid_log_return(df), 20), 60) + 1e-6), 120)
+    proxy_fidelity: medium
+    proxy_loss: Scales returns by local microstructure-noise proxy; no explicit latent-noise estimator or covariance model is fitted.
+  - id: paper_hf_depth_spread_stress
+    requires_flags: [lob_state, spread]
+    formula: _zscore(_spread(df) * abs(_book_imbalance(df, 5)), 60)
+    proxy_fidelity: medium
+    proxy_loss: Captures visible depth-pressure stress under wide spreads; hidden liquidity and queue priority are absent.
+  - id: paper_hf_spread_obi_slippage_risk
+    requires_flags: [spread, obi]
+    formula: _zscore(_spread(df) * abs(_book_imbalance(df, 5)), 60)
+    proxy_fidelity: medium
+    proxy_loss: Slippage-risk proxy combining visible spread cost with book imbalance pressure; does not estimate full depth-walk execution cost or forward liquidation paths.
+  - id: paper_hf_obi_volatility_beta_state
+    requires_flags: [benchmark, obi, volatility]
+    formula: _zscore(_book_imbalance(df, 5) * _rolling_std(_mid_log_return(df), 60), 120)
+    proxy_fidelity: low_medium
+    proxy_loss: Local substitute for benchmark-conditioned beta amplification; preserves OBI-volatility interaction but lacks benchmark returns and cross-asset beta estimation.
+  - id: paper_hf_order_book_imbalance
+    requires_flags: [obi]
+    formula: _zscore(_book_imbalance(df, 5), 60)
+    proxy_fidelity: low_medium
+    proxy_loss: Classic OBI fallback; can flatten richer LOB mechanisms.
+  - id: paper_hf_execution_friction
+    requires_flags: [spread]
+    formula: _zscore(_spread(df), 60)
+    proxy_fidelity: medium
+    proxy_loss: Top-of-book spread friction proxy; ignores queue and realized execution detail.
+  - id: paper_hf_activity_surge
+    requires_flags: [volume]
+    formula: _zscore(_safe_div(_rolling_sum(_num(df, "volume"), 20), _rolling_mean(_rolling_sum(_num(df, "volume"), 20), 120) + 1e-6), 120)
+    proxy_fidelity: medium
+    proxy_loss: Keeps abnormal local activity intensity; cannot distinguish trade count, cancellations, and posted liquidity events.
+  - id: paper_hf_local_residual_return
+    requires_flags: [benchmark, return]
+    formula: _zscore(_mid_log_return(df) - _rolling_mean(_mid_log_return(df), 120), 60)
+    proxy_fidelity: low
+    proxy_loss: Weak local residual proxy; removes only the instrument's own trailing mean and does not observe benchmark, index, ETF basket, beta, or cross-sectional residual state.
+  - id: paper_hf_local_common_flow_pressure
+    requires_flags: [systematic_flow]
+    formula: _zscore(_rolling_mean(_book_imbalance(df, 5) * _num(df, "volume"), 60), 120)
+    proxy_fidelity: low
+    proxy_loss: Weak systematic-flow proxy; uses persistent local book-flow pressure; no cross-sectional loadings, market-wide flow, or common component is estimated.
+  - id: paper_hf_vol_liquidity_regime_proxy
+    requires_flags: [latent_regime]
+    formula: _zscore(_rolling_std(_mid_log_return(df), 60) * (_spread(df) + abs(_book_imbalance(df, 5))), 120)
+    proxy_fidelity: low
+    proxy_loss: Weak latent-regime proxy; compresses volatility, spread, and visible depth imbalance into a state score; no HMM/posterior regime model is fitted.
+  - id: paper_hf_price_forecast_score_proxy
+    requires_flags: [predicted_probability, return]
+    formula: _zscore(_safe_div(_rolling_sum(_mid_log_return(df), 20), _rolling_std(_mid_log_return(df), 60) + 1e-6), 60)
+    proxy_fidelity: low
+    proxy_loss: Weak forecast-probability proxy; uses normalized local return pressure instead of trained model probability outputs.
+  - id: paper_hf_order_flow_cluster_proxy
+    requires_flags: [cluster]
+    formula: _zscore(abs(_book_imbalance(df, 5)) * _rolling_sum(abs(_num(df, "volume")), 20), 120)
+    proxy_fidelity: low
+    proxy_loss: Weak cluster proxy; scores local order-flow archetype intensity from visible imbalance and activity; no clustering model or labels are available.
+  - id: paper_hf_trade_price_momentum
+    fallback_canonical: trade_price
+    formula: _zscore(_rolling_sum(_mid_log_return(df), 20), 60)
+    proxy_fidelity: low_medium
+    proxy_loss: Reduces a trade-price mechanism to top-of-book mid-price momentum; no transaction event timing is observed.
+  - id: paper_hf_mid_price_deviation
+    fallback_canonical: mid_price
+    formula: _zscore(_mid_price(df) - _rolling_mean(_mid_price(df), 60), 60)
+    proxy_fidelity: medium
+    proxy_loss: Keeps a local mid-price displacement signal but may miss the paper's conditioning variables.
+  - id: paper_hf_realized_volatility_state
+    fallback_canonical: realized_volatility
+    formula: _zscore(_rolling_std(_mid_log_return(df), 60), 120)
+    proxy_fidelity: medium
+    proxy_loss: Uses trailing realized mid-return volatility; does not recover latent or model-implied volatility states.
+  - id: paper_hf_eff_price_residual
+    fallback_canonical: efficient_price
+    formula: _zscore(_mid_price(df) - _rolling_mean(_mid_price(df), 120), 120)
+    proxy_fidelity: low_medium
+    proxy_loss: Approximates efficient-price residual by mid-price deviation from a rolling mean; no structural efficient-price estimator is fit.
+  - id: paper_hf_noise_scale
+    fallback_canonical: noise_scale
+    formula: _zscore(_rolling_std(_mid_log_return(df) - _rolling_mean(_mid_log_return(df), 20), 60), 120)
+    proxy_fidelity: low_medium
+    proxy_loss: Uses residual mid-return volatility as a noise-scale proxy; no explicit microstructure noise model is estimated.
+  - id: paper_hf_rolling_corr_return_obi
+    requires_flags: [return, obi]
+    formula: _zscore(_rolling_corr(_mid_log_return(df), _book_imbalance(df, 5), 60), 120)
+    proxy_fidelity: medium
+    proxy_loss: Adds a bounded rolling correlation operator between return and OBI; still single-instrument and visible-book only.
+  - id: paper_hf_cost_adjusted_score
+    requires_flags: [return, spread, volatility]
+    formula: _zscore(_cost_adjusted_score(_rolling_sum(_mid_log_return(df), 20), _rolling_std(_mid_log_return(df), 60), _spread(df)), 60)
+    proxy_fidelity: medium
+    proxy_loss: "Optimization-style proxy: return score penalized by realized volatility and visible spread, not a full portfolio optimizer."
+  - id: paper_hf_no_trade_band_distance
+    requires_flags: [return, spread, volatility]
+    formula: _zscore(_no_trade_band_distance(_rolling_sum(_mid_log_return(df), 20), _spread(df), _rolling_std(_mid_log_return(df), 60)), 60)
+    proxy_fidelity: medium
+    proxy_loss: "No-trade-band proxy: distance of local return signal from volatility/spread-scaled cost band."
+  - id: paper_hf_local_return_autocorr_edge
+    requires_flags: [cross_market_edge, return]
+    formula: _zscore(_rolling_corr(_mid_log_return(df), _mid_log_return(df) - _diff(_mid_log_return(df)), 60), 120)
+    proxy_fidelity: low
+    proxy_loss: Weak local substitute for cross-market or graph return-prediction edge strength; uses own-lag return autocorrelation only, not foreign-market aligned edges.
+    base_only: true
+  - id: paper_hf_self_exciting_activity_pressure
+    requires_flags: [self_exciting, trade_event, volume]
+    formula: _zscore(_ewm_integral(abs(np.sign(_num(df, "volume"))), 20) * _zscore(_rolling_sum(abs(_num(df, "volume")), 20), 60), 120)
+    proxy_fidelity: low_medium
+    proxy_loss: Weak Hawkes/rough-intensity proxy from event arrivals and volume pressure; no event timestamps, kernel fitting, or branching ratio estimation.
+    base_only: true
+  - id: paper_hf_rough_activity_memory
+    requires_flags: [self_exciting, trade_event, volume]
+    formula: _zscore(_rolling_corr(_rolling_sum(abs(np.sign(_num(df, "volume"))), 20), _rolling_sum(abs(np.sign(_num(df, "volume"))), 120), 120), 120)
+    proxy_fidelity: low
+    proxy_loss: Weak long-memory proxy comparing short and long activity intensity; not a fractional kernel or rough volatility estimator.
+    base_only: true
+  - id: paper_hf_local_min_variance_shadow
+    requires_flags: [robust_optimization, return, volatility]
+    formula: _zscore(_safe_div(_rolling_sum(_mid_log_return(df), 20), _rolling_std(_mid_log_return(df), 120) ** 2 + 1e-6), 120)
+    proxy_fidelity: low
+    proxy_loss: Weak single-asset shadow of robust/minimum-variance allocation; no cross-asset covariance matrix or portfolio constraints.
+    base_only: true
+  - id: paper_hf_abstract_diffusion_policy_shadow
+    requires_flags: [no_proxy_mappings, abstract_diffusion_policy]
+    formula: _zscore(_cost_adjusted_score(_rolling_sum(_mid_log_return(df), 20), _rolling_std(_mid_log_return(df), 120), _spread(df)), 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for diffusion/CVaR policy mechanisms using only local cost-adjusted return pressure; no scenario model or portfolio optimizer.
+    base_only: true
+  - id: paper_hf_abstract_disclosure_impact_shadow
+    requires_flags: [no_proxy_mappings, abstract_disclosure_impact]
+    formula: _zscore(_rolling_std(_mid_log_return(df), 60) * _spread(df), 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for disclosure/information-impact mechanisms using local volatility times spread; no disclosure or competition data.
+    base_only: true
+  - id: paper_hf_abstract_execution_control_shadow
+    requires_flags: [no_proxy_mappings, abstract_execution_control]
+    formula: _zscore(_safe_div(_rolling_sum(abs(_num(df, "volume")), 20), _rolling_std(_mid_log_return(df), 60) + _spread(df) + 1e-6), 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for execution-control mechanisms using activity divided by local risk and visible cost; no order target, schedule, or impact model.
+    base_only: true
+  - id: paper_hf_abstract_prediction_market_shadow
+    requires_flags: [no_proxy_mappings, abstract_prediction_market]
+    formula: _zscore(_safe_div(_rolling_sum(_mid_log_return(df), 20), _rolling_std(_mid_log_return(df), 120) + 1e-6) - _spread(df), 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for prediction-market belief/probability mispricing using normalized local return pressure net of spread; no event probability feed.
+    base_only: true
+  - id: paper_hf_abstract_robust_portfolio_shadow
+    requires_flags: [no_proxy_mappings, abstract_robust_portfolio]
+    formula: _zscore(_safe_div(_rolling_sum(_mid_log_return(df), 20), _rolling_std(_mid_log_return(df), 120) ** 2 + _spread(df) + 1e-6), 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for robust/QUBO/Sharpe portfolio objectives using single-asset risk-adjusted return; no covariance matrix or asset selection.
+    base_only: true
+  - id: paper_hf_abstract_transfer_entropy_shadow
+    requires_flags: [no_proxy_mappings, abstract_transfer_entropy]
+    formula: _zscore(abs(_rolling_corr(_mid_log_return(df), _book_imbalance(df, 5), 60)) * _rolling_sum(abs(_num(df, "volume")), 20), 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for transfer-entropy networks using local return/OBI dependence and activity; no investor-type flow network.
+    base_only: true
+  - id: paper_hf_abstract_operator_volatility_shadow
+    requires_flags: [no_proxy_mappings, abstract_operator_volatility]
+    formula: _zscore(_microstructure_noise_trace(df, 60) + _rolling_std(_mid_log_return(df), 120) ** 2, 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for operator-level ARCH/volatility surfaces using local noise trace and realized variance; no operator-valued covariance surface.
+    base_only: true
+  - id: paper_hf_abstract_cfmm_amm_shadow
+    requires_flags: [no_proxy_mappings, abstract_cfmm_amm]
+    formula: _zscore(abs(_rolling_sum(_mid_log_return(df), 20)) * (_spread(df) + _rolling_std(_mid_log_return(df), 60)), 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for AMM/CFMM loss or slippage mechanisms using local price movement, spread, and volatility; no pool reserves or AMM weights.
+    base_only: true
+  - id: paper_hf_abstract_tail_risk_shadow
+    requires_flags: [no_proxy_mappings, abstract_tail_risk]
+    formula: _zscore(_rolling_mean(_clip(abs(_mid_log_return(df)) - _rolling_std(_mid_log_return(df), 120) * 2.0, 0, np.inf), 60), 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for joint/extreme tail risk using local excess absolute returns; no cross-asset tail dependence.
+    base_only: true
+  - id: paper_hf_abstract_deep_hedging_uncertainty_shadow
+    requires_flags: [no_proxy_mappings, abstract_deep_hedging_uncertainty]
+    formula: _zscore(_rolling_std(_safe_div(_rolling_sum(_mid_log_return(df), 20), _rolling_std(_mid_log_return(df), 60) + 1e-6), 60), 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for ensemble/deep-hedging uncertainty using instability of local normalized return pressure; no model ensemble outputs.
+    base_only: true
+  - id: paper_hf_abstract_rl_forecast_residual_shadow
+    requires_flags: [no_proxy_mappings, abstract_rl_forecast_residual]
+    formula: _zscore(_mid_log_return(df) - _rolling_mean(_mid_log_return(df), 60) + _spread(df) * _book_imbalance(df, 5), 120)
+    proxy_fidelity: low
+    proxy_loss: Abstract weak proxy for forecast-residual RL signals using local return residual plus book/spread pressure; no exogenous forecast curve.
+    base_only: true

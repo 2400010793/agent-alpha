@@ -1,0 +1,16 @@
+{
+  "schema_version": "new2_hf_mechanism_agents_v1",
+  "default_categories": ["order_book_pressure", "price_volume_divergence", "short_momentum"],
+  "agents": {
+    "order_book_pressure": {"name": "盘口压力", "prompt": "prompts/hf/order_book_pressure.md", "fields": ["askP1", "bidP1", "askV1", "bidV1"], "horizons": ["ret10s", "ret30s", "ret60s"]},
+    "depute_imbalance": {"name": "委托失衡", "prompt": "prompts/hf/depute_imbalance.md", "fields": ["totalDeputeBuy", "totalDeputeSell", "averageBuy", "averageSell"], "horizons": ["ret10s", "ret30s", "ret60s"]},
+    "trade_impact": {"name": "成交冲击", "prompt": "prompts/hf/trade_impact.md", "fields": ["volume", "money", "close"], "horizons": ["ret10s", "ret30s", "ret60s"]},
+    "price_volume_divergence": {"name": "量价背离", "prompt": "prompts/hf/price_volume_divergence.md", "fields": ["close", "volume", "money"], "horizons": ["ret30s", "ret60s", "ret120s"]},
+    "spread_liquidity": {"name": "价差与流动性", "prompt": "prompts/hf/spread_liquidity.md", "fields": ["askP1", "bidP1", "askV1", "bidV1"], "horizons": ["ret10s", "ret30s", "ret60s"]},
+    "short_reversal": {"name": "短期反转", "prompt": "prompts/hf/short_reversal.md", "fields": ["close", "volume", "money"], "horizons": ["ret30s", "ret60s", "ret120s"]},
+    "short_momentum": {"name": "短期趋势", "prompt": "prompts/hf/short_momentum.md", "fields": ["close", "volume", "money"], "horizons": ["ret30s", "ret60s", "ret120s"]},
+    "volatility_burst": {"name": "波动突变", "prompt": "prompts/hf/volatility_burst.md", "fields": ["close", "volume", "money"], "horizons": ["ret10s", "ret30s", "ret60s"]},
+    "book_shape": {"name": "盘口形态", "prompt": "prompts/hf/book_shape.md", "fields": ["askP1", "askP10", "bidP1", "bidP10", "askV1", "askV10", "bidV1", "bidV10"], "horizons": ["ret30s", "ret60s"]},
+    "trading_rhythm": {"name": "成交节律", "prompt": "prompts/hf/trading_rhythm.md", "fields": ["volume", "money", "close"], "horizons": ["ret10s", "ret30s", "ret60s"]}
+  }
+}

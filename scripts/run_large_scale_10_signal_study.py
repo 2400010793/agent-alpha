@@ -150,6 +150,11 @@ def is_rate_limit_error(exc: BaseException) -> bool:
     return "429" in text or "too many" in text or "rate limit" in text or "ratelimit" in text
 
 
+def is_timeout_error(exc: BaseException) -> bool:
+    text = str(exc).casefold()
+    return "timeout" in text or "timed out" in text or "read timed out" in text or "connect timeout" in text
+
+
 class RotatingLLMClient:
     def __init__(
         self,
@@ -158,11 +163,13 @@ class RotatingLLMClient:
         state_path: Path,
         cooldown_sec: int,
         rate_limit_backoff_sec: int,
+        timeout_backoff_sec: int = 7200,
     ) -> None:
         self.clients = [LLMClient(settings) for settings in settings_by_key]
         self.state_path = state_path
         self.cooldown_sec = cooldown_sec
         self.rate_limit_backoff_sec = rate_limit_backoff_sec
+        self.timeout_backoff_sec = timeout_backoff_sec
         self.state = self._load_state()
         self.settings = settings_by_key[0]
 
@@ -225,6 +232,10 @@ class RotatingLLMClient:
                     state["rate_limit_count"] = int(state.get("rate_limit_count", 0)) + 1
                     state["next_available_ts"] = now + self.rate_limit_backoff_sec
                     print(json.dumps({"event": "llm_rate_limited", "key_index": index + 1, "sleep_key_sec": self.rate_limit_backoff_sec, "time": utc_now_iso()}, ensure_ascii=False), flush=True)
+                elif is_timeout_error(exc):
+                    state["timeout_count"] = int(state.get("timeout_count", 0)) + 1
+                    state["next_available_ts"] = now + self.timeout_backoff_sec
+                    print(json.dumps({"event": "llm_timeout_backoff", "key_index": index + 1, "sleep_key_sec": self.timeout_backoff_sec, "time": utc_now_iso()}, ensure_ascii=False), flush=True)
                 else:
                     state["error_count"] = int(state.get("error_count", 0)) + 1
                     state["next_available_ts"] = now + min(self.cooldown_sec, 300)
@@ -232,7 +243,7 @@ class RotatingLLMClient:
                 self._save_state()
                 if not any(float(self._key_state(i).get("next_available_ts", 0.0)) <= time.time() for i in range(len(self.clients))):
                     continue
-            if last_error and not is_rate_limit_error(last_error):
+            if last_error and not (is_rate_limit_error(last_error) or is_timeout_error(last_error)):
                 continue
 
     def complete_json_with_mcp_tools(
@@ -265,6 +276,10 @@ class RotatingLLMClient:
                     state["rate_limit_count"] = int(state.get("rate_limit_count", 0)) + 1
                     state["next_available_ts"] = now + self.rate_limit_backoff_sec
                     print(json.dumps({"event": "llm_mcp_rate_limited", "key_index": index + 1, "sleep_key_sec": self.rate_limit_backoff_sec, "time": utc_now_iso()}, ensure_ascii=False), flush=True)
+                elif is_timeout_error(exc):
+                    state["timeout_count"] = int(state.get("timeout_count", 0)) + 1
+                    state["next_available_ts"] = now + self.timeout_backoff_sec
+                    print(json.dumps({"event": "llm_mcp_timeout_backoff", "key_index": index + 1, "sleep_key_sec": self.timeout_backoff_sec, "time": utc_now_iso()}, ensure_ascii=False), flush=True)
                 else:
                     state["error_count"] = int(state.get("error_count", 0)) + 1
                     state["next_available_ts"] = now + min(self.cooldown_sec, 300)
@@ -272,11 +287,11 @@ class RotatingLLMClient:
                 self._save_state()
                 if not any(float(self._key_state(i).get("next_available_ts", 0.0)) <= time.time() for i in range(len(self.clients))):
                     continue
-            if last_error and not is_rate_limit_error(last_error):
+            if last_error and not (is_rate_limit_error(last_error) or is_timeout_error(last_error)):
                 continue
 
 
-def build_rotating_client(output_dir: Path, *, cooldown_sec: int, rate_limit_backoff_sec: int) -> RotatingLLMClient:
+def build_rotating_client(output_dir: Path, *, cooldown_sec: int, rate_limit_backoff_sec: int, timeout_backoff_sec: int = 7200) -> RotatingLLMClient:
     config = load_project_config().llm
     keys = parse_inline_keys(config)
     if len(keys) < 3:
@@ -297,6 +312,7 @@ def build_rotating_client(output_dir: Path, *, cooldown_sec: int, rate_limit_bac
         state_path=output_dir / "llm_key_state.json",
         cooldown_sec=cooldown_sec,
         rate_limit_backoff_sec=rate_limit_backoff_sec,
+        timeout_backoff_sec=timeout_backoff_sec,
     )
 
 

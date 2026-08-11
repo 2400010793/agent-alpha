@@ -1,0 +1,28 @@
+schema_version: data_contract_v1
+data_contract_id: intraday_hf_v1
+track: intraday_hf
+status: requires_frozen_snapshot
+sources:
+  - path: /data/share/py-eval/trade_data
+    format: date_code_parquet
+allowed_observables:
+  - RETURN_HISTORY
+  - PRICE_LEVEL_OHLC
+  - VOLUME_TURNOVER
+  - L2_BOOK_SNAPSHOT
+  - TRADE_PRINTS_SIGN
+blocked_observables:
+  - FUNDAMENTAL_PIT
+  - MARKET_CAP_SHARES
+  - INDUSTRY_CLASSIFICATION
+  - DERIVATIVES_CHAIN
+  - CROSS_MARKET_DATA
+  - TEXT_EVENT
+  - MACRO_ALTERNATIVE
+access_policy:
+  exact_paths: []
+  allowed_roots:
+    - /data/share/py-eval/trade_data
+  snapshot_manifest_required: true
+  snapshot_manifest: null
+  cross_contract_reads: deny

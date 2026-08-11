@@ -49,19 +49,3 @@ def test_prefix_expression_supports_safe_extra_ops() -> None:
     assert result.ok, result.errors
     assert prefix_to_expression(prefix) == "rank(log1p(abs(clip(volume, 0, 1000))))"
     assert fields_from_prefix(prefix) == ["volume"]
-
-
-def test_prefix_expression_supports_fac_study_ops() -> None:
-    registry = FieldRegistry.from_yaml("configs/field_registry.yaml")
-    prefix = [
-        "where",
-        ["gt", ["rolling_std", "close", 20], ["rolling_std", "close", 60]],
-        ["div_mean", ["sub", "bidV1", "askV1"], ["add", "bidV1", "askV1"], 30],
-        ["neg", ["ewm_mean", ["diff", "volume", 1], 20]],
-    ]
-
-    result = validate_prefix_expression(prefix, registry)
-
-    assert result.ok, result.errors
-    assert fields_from_prefix(prefix) == ["close", "bidV1", "askV1", "volume"]
-    assert windows_from_prefix(prefix) == [1, 20, 30, 60]

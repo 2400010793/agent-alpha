@@ -19,7 +19,7 @@ def _first_float(metrics: dict, names: tuple[str, ...]) -> float | None:
     return None
 
 
-def test_statistical_strength(metrics: dict, config: dict) -> dict:
+def test_statistical_strength(metrics: dict, config: dict, *, expected_direction: str = "unknown") -> dict:
     rankic_value = _first_float(metrics, ("daily_rankic", "global_rankic", "rankic", "daily_ic", "global_ic"))
     finite_ratio = _first_float(metrics, ("finite_ratio",))
     zero_ratio = _first_float(metrics, ("zero_ratio",))
@@ -34,6 +34,12 @@ def test_statistical_strength(metrics: dict, config: dict) -> dict:
         reasons.append("missing_rankic")
     elif abs_rankic < min_abs_rankic:
         reasons.append(f"rankic_too_weak:{abs_rankic:g}<{min_abs_rankic:g}")
+    normalized_direction = str(expected_direction or "unknown").casefold()
+    if rankic_value is not None:
+        if normalized_direction == "positive" and rankic_value < 0:
+            reasons.append(f"direction_mismatch:expected_positive,rankic={rankic_value:g}")
+        elif normalized_direction == "negative" and rankic_value > 0:
+            reasons.append(f"direction_mismatch:expected_negative,rankic={rankic_value:g}")
     if finite_ratio is None:
         reasons.append("missing_finite_ratio")
     elif finite_ratio < min_finite_ratio:
@@ -59,6 +65,7 @@ def test_statistical_strength(metrics: dict, config: dict) -> dict:
         "finite_ratio": finite_ratio,
         "zero_ratio": zero_ratio,
         "qspread_mean": qspread_mean,
+        "expected_direction": normalized_direction,
         "reasons": reasons,
         "summary": summary,
     }

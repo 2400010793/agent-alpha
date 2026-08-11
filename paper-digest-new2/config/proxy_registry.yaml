@@ -1,0 +1,2098 @@
+version: 1
+description: Maps paper-level high-frequency factor variables to local computable proxies. Only direct and derived mappings
+  are eligible for automatic factor generation.
+schema:
+  proxy_strength: direct | derived | weak_proxy | future_pipeline | unsupported
+  aliases: confirmed aliases are used for automatic matching; suggested aliases are audit candidates only.
+  local_proxies: ordered candidate expressions with required_fields, allowed_functions, proxy_quality, confidence, and approximation_loss.
+  validation_status: computed by the pipeline from local_proxy, ALLOWED_FACTOR_FIELDS, and ALLOWED_EXPRESSION_FUNCS.
+  review_status: needs_review | reviewed | rejected | future_pipeline | deprecated
+  missing_data: optional list of data families needed for faithful computation when proxy_strength is weak_proxy, future_pipeline,
+    or unsupported.
+  mechanism_catalog: non-executable LLM-facing physical interpretation. conceptual_expression is explanatory only;
+    executable formulas must continue to come from local_proxies or proxy_variant_templates.yaml.
+  composite_factor_families: AST-ready multi-variable composition recipes. custom_formula_template may only use canonical
+    proxy keys and generate_paper_hf_factor_tests.py CUSTOM_FORMULA_HELPERS; it is a pattern, not an automatic factor.
+variables: &base_variables
+  return_series:
+    proxy_strength: derived
+    aliases:
+      confirmed:
+      - returns
+      - return
+      - r_t
+      - log_return
+      - price_return
+      - mid_return
+      - quote_return
+      - intraday_return
+      - short_return_t
+      - market_short_return_t
+      - short_return
+      - past_short_return_t
+      - VW_cum_return
+      - leveraged_etf_intraday_return_series
+      - price_series_WTI
+      - price_series_Brent
+      - future_k_return_j
+      - A 股开盘收益
+      suggested: []
+    local_proxy: log(((askP1 + bidP1) / 2) / last_close)
+    required_fields:
+    - askP1
+    - bidP1
+    - last_close
+    local_proxies:
+    - expression: log(((askP1 + bidP1) / 2) / last_close)
+      required_fields:
+      - askP1
+      - bidP1
+      - last_close
+      allowed_functions:
+      - log
+      proxy_quality: high
+      confidence: 0.85
+      approximation_loss: Uses top-of-book mid versus previous close; cleaner than trade-close returns but still coarse across
+        tick time.
+    - expression: pct_change(close)
+      required_fields:
+      - close
+      allowed_functions:
+      - pct_change
+      proxy_quality: low
+      confidence: 0.45
+      approximation_loss: Close-based tick return is easy to compute but can be polluted by bid-ask bounce and sparse trade
+        updates.
+    approximation_loss: Uses realized local price returns, not model-implied or risk-neutral returns.
+    data_requirement: Local best bid/ask and previous close, or fallback trade close series.
+    review_status: reviewed
+    reviewer: audit_web_daily
+    confidence: 0.85
+    role: core_or_auxiliary
+    last_reviewed_at: '2026-07-07T04:40:49.997831+00:00'
+  realized_volatility:
+    proxy_strength: derived
+    aliases:
+    - volatility
+    - realized_vol
+    - rolling_volatility
+    - sigma_t
+    - vol_t
+    - rv
+    - realized_variance
+    - realized_sigma
+    - intraday_volatility
+    - realized_volatility_i
+    - volatility_by_state
+    - rolling_estimates_of_sigma_e
+    - sigma_e
+    - rolling_window_covariance
+    - covariance
+    - cross-sectional covariance
+    local_proxy: rolling_std(log(((askP1 + bidP1) / 2) / last_close), 60)
+    required_fields:
+    - askP1
+    - bidP1
+    - last_close
+    local_proxies:
+    - expression: rolling_std(log(((askP1 + bidP1) / 2) / last_close), 60) * (1 + (askP1 - bidP1) / ((askP1 + bidP1) / 2))
+      required_fields:
+      - askP1
+      - bidP1
+      - last_close
+      allowed_functions:
+      - rolling_std
+      - log
+      proxy_quality: high
+      confidence: 0.85
+      approximation_loss: "摩擦修正波动率 (Friction-Adjusted Volatility): 在名义波动率基础上乘以买卖价差倍数。反映信息：捕捉在市场深度变薄、交易成本极高时的实际风险溢价，防止在流动性陷阱中错误估计风险。"
+    - expression: rolling_std(log(((askP1 + bidP1) / 2) / last_close), 60)
+      required_fields:
+      - askP1
+      - bidP1
+      - last_close
+      allowed_functions:
+      - rolling_std
+      - log
+      proxy_quality: medium
+      confidence: 0.8
+      approximation_loss: Uses visible top-of-book mid and previous close; reduces trade-price noise but is not a latent conditional
+        volatility.
+    - expression: rolling_std(pct_change(close), 60)
+      required_fields:
+      - close
+      allowed_functions:
+      - rolling_std
+      - pct_change
+      proxy_quality: low
+      confidence: 0.4
+      approximation_loss: Close-based volatility is vulnerable to bid-ask bounce and stale trade updates in high-frequency
+        data.
+    approximation_loss: Captures trailing realized volatility, not conditional volatility or latent variance.
+    data_requirement: Local price series from top-of-book mid or trade close.
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.8
+    role: auxiliary
+
+# 微观物理机制字典：扩展 LLM 的组合语义，不改变 local_proxy 的可执行白名单。
+# 所有机制量对外组合前应 zscore、clip 或 tanh 归一化；conceptual_expression 仅描述
+# 物理关系，不能直接作为 Python/AST 公式执行。
+mechanism_catalog:
+  return_series:
+    physics_meaning: "报价中点的方向性位移；应同时由主动成交流、价差和盘口补给解释。"
+    causal_channels: ["信息到达后的价格发现", "主动成交冲击", "流动性供给再平衡"]
+    interaction_dimensions: ["signed_order_flow", "execution_friction", "order_book_imbalance"]
+    conceptual_expression: "normalized(mid_return) * (1 + normalized(signed_order_flow)) / (1 + normalized(execution_friction))"
+    normalization_guidance: "先对对数收益滚动标准化，并裁剪极端跳点。"
+  realized_volatility:
+    physics_meaning: "真实风险与价差反弹、深度撤离混合后的局部价格能量。"
+    causal_channels: ["有效价格不确定性", "买卖价差跳动", "流动性脆弱性"]
+    interaction_dimensions: ["execution_friction", "unexplained_depth_depletion", "noise_scale"]
+    conceptual_expression: "sqrt(max(0, rolling_var(mid_return) - friction_weight * execution_friction * unexplained_depth_depletion))"
+    normalization_guidance: "用滚动分位或 zscore 暴露；该式是概念蓝图，不绕过算子白名单。"
+  mid_price:
+    physics_meaning: "双边报价中心锚点；队列失衡会使其偏离短期有效价格。"
+    causal_channels: ["双边报价更新", "队列权重", "短期价格发现"]
+    interaction_dimensions: ["efficient_price", "order_book_imbalance", "queue_change"]
+    conceptual_expression: "mid_price + queue_weight * normalized(order_book_imbalance) * execution_friction"
+    normalization_guidance: "使用收益、偏离或相对价差，避免直接将价格水平与流量相加。"
+  trade_price:
+    physics_meaning: "实际成交打印反映主动方穿透流动性的价格，应与报价中点区分。"
+    causal_channels: ["主动买卖成交", "报价穿透", "交易方向识别"]
+    interaction_dimensions: ["mid_price", "signed_order_flow", "execution_friction"]
+    conceptual_expression: "normalized(trade_price - mid_price) * normalized(signed_order_flow)"
+    normalization_guidance: "只有事件源确认成交时才解释为 trade_price；L2 快照是低保真回退。"
+  execution_friction:
+    physics_meaning: "成交跨越的即时阻力，包含可见价差、深度稀薄和潜在冲击。"
+    causal_channels: ["买卖价差", "队列深度", "冲击成本与滑点"]
+    interaction_dimensions: ["order_book_imbalance", "volume_or_trade_activity", "realized_volatility"]
+    conceptual_expression: "relative_spread * (1 + normalized(activity)) / (1 + normalized(visible_depth))"
+    normalization_guidance: "作为分母或门槛时加入 epsilon；不可把可见价差描述为完整实现成本。"
+  volume_or_trade_activity:
+    physics_meaning: "成交与可见流动性的能量尺度；活动激增既可能是信息，也可能是噪音。"
+    causal_channels: ["交易到达", "大单拆分", "流动性需求"]
+    interaction_dimensions: ["trade_event_intensity", "order_size", "signed_notional_flow"]
+    conceptual_expression: "normalized(gross_volume) * normalized(trade_event_intensity)"
+    normalization_guidance: "同时保留绝对活动和方向性流，并对数化或标准化后再耦合收益。"
+  benchmark_return_series:
+    physics_meaning: "共同市场冲击的基准方向；本地单品种替代仅表达弱共同成分。"
+    causal_channels: ["市场 beta", "行业同步波动", "系统性流动性冲击"]
+    interaction_dimensions: ["return_series", "systematic_flow", "network_contagion"]
+    conceptual_expression: "return_series - rolling_beta(return_series, benchmark_return_series) * benchmark_return_series"
+    normalization_guidance: "没有同步基准时保持 weak_proxy，禁止称本地去均值收益为真实残差。"
+  arrival_intensity:
+    physics_meaning: "订单或成交事件在事件时间上的到达速度，包含自激和聚集效应。"
+    causal_channels: ["Hawkes 自激", "新闻触发", "大单拆分"]
+    interaction_dimensions: ["trade_event_intensity", "order_event", "text_event_signal"]
+    conceptual_expression: "baseline_intensity + self_excitation * recent_event_count"
+    normalization_guidance: "需要事件时间戳和标签；快照聚合量不能忠实恢复强度。"
+  liquidity_tail_risk:
+    physics_meaning: "极端状态下深度消失、价差扩张和冲击成本非线性上升的尾部风险。"
+    causal_channels: ["深度撤离", "波动跳跃", "市场压力传导"]
+    interaction_dimensions: ["realized_volatility", "execution_friction", "unexplained_depth_depletion"]
+    conceptual_expression: "tail(volatility) * tail(execution_friction) * normalized(depth_depletion)"
+    normalization_guidance: "以分位门控而非普通均值使用；本地波动率只可作为弱替代。"
+  adverse_selection:
+    physics_meaning: "知情方向性成交在盘口补给不足时造成的不可逆价格冲击。"
+    causal_channels: ["有信息交易", "单边流吞噬", "深度补给停滞"]
+    interaction_dimensions: ["signed_notional_flow", "depth_replenishment", "trade_event_intensity"]
+    conceptual_expression: "abs(signed_notional_flow) / (depth_replenishment + epsilon) * trade_event_intensity"
+    normalization_guidance: "可见价格-成交一致性只是毒性代理，不得推断交易者身份。"
+  systematic_flow:
+    physics_meaning: "跨资产共同流动性或共同需求冲击，而非单一证券局部订单压力。"
+    causal_channels: ["指数再平衡", "共同资金流", "跨资产风险平价"]
+    interaction_dimensions: ["benchmark_return_series", "network_contagion", "signed_order_flow"]
+    conceptual_expression: "cross_sectional_projection(signed_order_flow, common_flow_loadings)"
+    normalization_guidance: "无截面资产与载荷时必须保留 weak_proxy，不能升级为共同因子。"
+  lob_state_divergence:
+    physics_meaning: "多层订单簿双侧状态偏离，表达可见流动性供给的不对称。"
+    causal_channels: ["多档深度失衡", "远端挂单吸引力", "队列状态迁移"]
+    interaction_dimensions: ["order_book_imbalance", "queue_change", "depth_replenishment"]
+    conceptual_expression: "log_decay_depth_imbalance + queue_velocity * replenishment_asymmetry"
+    normalization_guidance: "多层深度应按档位衰减加权并有界映射；隐藏流动性仍不可见。"
+  efficient_price:
+    physics_meaning: "剔除部分盘口噪音后，受队列压力校正的短期公允价格锚。"
+    causal_channels: ["微价格加权", "有效价格滤波", "短期均值回归"]
+    interaction_dimensions: ["mid_price", "noise_scale", "order_book_imbalance"]
+    conceptual_expression: "microprice - noise_filter(noise_scale) + imbalance_pressure"
+    normalization_guidance: "microprice 是可观测近似，不等同于模型滤波的潜在有效价格。"
+  noise_scale:
+    physics_meaning: "报价跳动、价差变化与盘口重排造成的微观结构噪音尺度。"
+    causal_channels: ["bid-ask bounce", "报价撤挂", "离散价格网格"]
+    interaction_dimensions: ["execution_friction", "queue_change", "realized_volatility"]
+    conceptual_expression: "sqrt(var(mid_return) + var(spread_change) + var(book_imbalance_change))"
+    normalization_guidance: "优先作为风险缩放分母；极低噪音值需要 epsilon。"
+  candlestick_geometry:
+    physics_meaning: "在线价格路径相对当前会话区间的位置与实体强度，刻画路径依赖。"
+    causal_channels: ["趋势延续", "区间拒绝", "日内均值回归"]
+    interaction_dimensions: ["online_intraday_range", "return_series", "volume_or_trade_activity"]
+    conceptual_expression: "body_to_range * normalized(activity) * sign(return_series)"
+    normalization_guidance: "仅使用 expanding 的当前高低点，禁止使用收盘后完整日线。"
+  session_open_price:
+    physics_meaning: "会话起点价格锚，用于度量盘中相对开盘的信息重估。"
+    causal_channels: ["开盘集合竞价", "隔夜信息吸收", "日内锚定"]
+    interaction_dimensions: ["online_intraday_range", "mid_price", "volume_or_trade_activity"]
+    conceptual_expression: "normalized(mid_price / session_open_price - 1) * opening_activity"
+    normalization_guidance: "官方开盘价优先；首个 tick 是低保真回退，须保持无前视。"
+  online_vwap_twap:
+    physics_meaning: "截至 t 的成交量或时间加权价格锚，衡量执行路径相对市场平均的偏离。"
+    causal_channels: ["成交分布", "执行基准", "订单拆分路径"]
+    interaction_dimensions: ["trade_price", "signed_notional_flow", "execution_friction"]
+    conceptual_expression: "normalized(mid_price - online_vwap) * normalized(signed_notional_flow)"
+    normalization_guidance: "只累计当日已观察数据；VWAP 与 TWAP 不能视为可互换变量。"
+  online_intraday_range:
+    physics_meaning: "当前会话已实现的振幅与位置，反映突破、回撤和流动性消耗状态。"
+    causal_channels: ["价格发现路径", "止损触发", "日内拥挤交易"]
+    interaction_dimensions: ["candlestick_geometry", "realized_volatility", "liquidity_tail_risk"]
+    conceptual_expression: "range_position * normalized(expanding_range) * regime_gate(volatility)"
+    normalization_guidance: "会话早期窄区间需 epsilon 与最小样本门槛，避免比率失真。"
+  derivative_funding_state:
+    physics_meaning: "资金费率、基差和持仓共同描述的衍生品杠杆需求与现货-期货失衡。"
+    causal_channels: ["永续资金费", "套保需求", "杠杆拥挤"]
+    interaction_dimensions: ["cross_venue_gap", "open_interest", "return_series"]
+    conceptual_expression: "funding_rate * open_interest_change * basis_deviation"
+    normalization_guidance: "需要衍生品同步数据；不能用现货盘口替代为同一物理变量。"
+  amm_pool_state:
+    physics_meaning: "AMM 池储备比例、曲线斜率与 swap 流共同决定的链上流动性状态。"
+    causal_channels: ["恒定乘积曲线", "池子储备变化", "链上交换冲击"]
+    interaction_dimensions: ["swap_events", "pool_liquidity", "cross_venue_gap"]
+    conceptual_expression: "reserve_imbalance / pool_liquidity * swap_intensity"
+    normalization_guidance: "需要链上储备和事件流；中心化订单簿深度不能忠实代理。"
+  network_contagion:
+    physics_meaning: "冲击沿资产相关性、共同持仓或注意力网络扩散的方向与速度。"
+    causal_channels: ["图连接", "共同资金流", "跨资产信息传导"]
+    interaction_dimensions: ["systematic_flow", "benchmark_return_series", "text_event_signal"]
+    conceptual_expression: "graph_propagation(neighbor_shocks, dynamic_edge_weights)"
+    normalization_guidance: "需要图边与同步多资产状态；单品种不可宣称已估计网络传染。"
+  order_book_imbalance:
+    physics_meaning: "多档可见深度经衰减加权后的需求-供给压力，可由队列速度修正。"
+    causal_channels: ["档位深度", "队列加速度", "短期价格吸引力"]
+    interaction_dimensions: ["queue_change", "depth_replenishment", "execution_friction"]
+    conceptual_expression: "log_decay_imbalance + queue_velocity * replenishment_asymmetry"
+    normalization_guidance: "按档位用对数或衰减权重，并通过 tanh/zscore 映射到稳定尺度。"
+  signed_order_flow:
+    physics_meaning: "带方向的主动成交量，描述买方和卖方立即需求的净压力。"
+    causal_channels: ["侵略性成交", "订单流持续性", "短期冲击"]
+    interaction_dimensions: ["signed_notional_flow", "trade_event_intensity", "mid_price"]
+    conceptual_expression: "rolling_sum(signed_order_flow) * sign(mid_return)"
+    normalization_guidance: "必须确认正负号代表主动买卖；方向量和绝对活动量应分别建模。"
+  signed_notional_flow:
+    physics_meaning: "按成交金额计量的方向性需求，可区分同量不同价格等级的冲击。"
+    causal_channels: ["大额资金流", "交易方向", "价格冲击预算"]
+    interaction_dimensions: ["order_size", "adverse_selection", "execution_friction"]
+    conceptual_expression: "signed_notional_flow / (visible_depth * (1 + execution_friction))"
+    normalization_guidance: "用滚动绝对金额归一化，避免高价标的机械地支配组合。"
+  trade_event_intensity:
+    physics_meaning: "可观察成交事件频度，是市场参与和信息到达速度的局部时钟。"
+    causal_channels: ["事件聚集", "交易激活", "冲击持续时间"]
+    interaction_dimensions: ["arrival_intensity", "order_size", "signed_order_flow"]
+    conceptual_expression: "event_count_window / elapsed_event_time"
+    normalization_guidance: "快照行数不必然等于真实事件数；事件级数据支持更强解释。"
+  order_size:
+    physics_meaning: "单笔或聚合成交规模，决定瞬时需求能否穿透可见流动性。"
+    causal_channels: ["大单冲击", "拆单执行", "流动性消耗"]
+    interaction_dimensions: ["signed_notional_flow", "depth_replenishment", "execution_friction"]
+    conceptual_expression: "normalized(order_size / (visible_depth + epsilon)) * sign(signed_order_flow)"
+    normalization_guidance: "使用相对深度或对数规模；聚合 tick 不可推断真实子订单数。"
+  queue_change:
+    physics_meaning: "双边可见队列的增减速度，刻画流动性供给者的即时反应。"
+    causal_channels: ["新增挂单", "撤单", "成交消耗与档位迁移"]
+    interaction_dimensions: ["order_book_imbalance", "depth_replenishment", "unexplained_depth_depletion"]
+    conceptual_expression: "diff(bid_depth) - diff(ask_depth), conditioned_on_price_level_stability"
+    normalization_guidance: "无订单 ID 时不能分离撤单和成交；需按深度尺度标准化。"
+  depth_replenishment:
+    physics_meaning: "深度被成交或撤离后重新补充的速度，是流动性韧性的核心维度。"
+    causal_channels: ["做市补单", "被动流动性供给", "冲击恢复"]
+    interaction_dimensions: ["unexplained_depth_depletion", "adverse_selection", "queue_change"]
+    conceptual_expression: "positive_depth_additions / (recent_depletion + epsilon)"
+    normalization_guidance: "可见深度增加只是代理；须对价格档位变化稳健处理。"
+  unexplained_depth_depletion:
+    physics_meaning: "无法由可见成交完全解释的深度消失，可能对应撤单、隐藏流动性变化或档位迁移。"
+    causal_channels: ["撤单", "队列迁移", "隐性流动性撤离"]
+    interaction_dimensions: ["depth_replenishment", "execution_friction", "liquidity_tail_risk"]
+    conceptual_expression: "negative_depth_change - explained_trade_consumption"
+    normalization_guidance: "无订单事件时保持 weak_proxy；适合作风险门控，不作确定撤单标签。"
+  inventory:
+    physics_meaning: "做市商或参与者私有头寸状态，驱动报价偏移和对冲需求。"
+    causal_channels: ["库存风险", "报价偏斜", "被动对冲"]
+    interaction_dimensions: ["signed_notional_flow", "order_book_imbalance", "execution_friction"]
+    conceptual_expression: "inventory_pressure * quote_skew / (1 + execution_friction)"
+    normalization_guidance: "公开成交流不是私有库存；仅能保留为低保真压力影子。"
+  latent_regime:
+    physics_meaning: "潜在市场状态后验概率，如趋势、均值回归、压力或高噪音状态。"
+    causal_channels: ["状态切换", "波动-流动性耦合", "参数非平稳性"]
+    interaction_dimensions: ["realized_volatility", "order_book_imbalance", "noise_scale"]
+    conceptual_expression: "posterior_regime_probability(features=[volatility, imbalance, noise])"
+    normalization_guidance: "本地阈值分数不是 posterior；需在线模型输出才可作为真实状态概率。"
+  predicted_probability:
+    physics_meaning: "预测模型给出的条件事件或收益概率，属于模型输出而非原始盘口变量。"
+    causal_channels: ["特征聚合", "校准概率", "横截面排序"]
+    interaction_dimensions: ["latent_regime", "return_series", "systematic_flow"]
+    conceptual_expression: "calibrated_model_probability(feature_vector, regime_context)"
+    normalization_guidance: "不能将归一化收益宣传为概率；需要模型、训练样本和校准记录。"
+  cluster_id:
+    physics_meaning: "订单流或盘口行为原型的离散标签，用于识别不同交易机制。"
+    causal_channels: ["行为聚类", "订单拆分模式", "流动性状态分组"]
+    interaction_dimensions: ["signed_order_flow", "trade_event_intensity", "lob_state_divergence"]
+    conceptual_expression: "cluster_label(feature_vector=[flow, intensity, book_state])"
+    normalization_guidance: "强度分数不能替代离散聚类标签；缺模型时仅作弱影子。"
+  order_event:
+    physics_meaning: "带时间、方向、动作和队列位置的订单级原子事件，是机制识别的原始证据。"
+    causal_channels: ["报单", "撤单", "成交", "修改与队列优先级"]
+    interaction_dimensions: ["arrival_intensity", "queue_change", "depth_replenishment"]
+    conceptual_expression: "event(action, side, size, price_level, queue_position, timestamp)"
+    normalization_guidance: "聚合 L2 快照不能逆推出单个事件，必须由订单事件流提供。"
+  cross_venue_gap:
+    physics_meaning: "不同交易场所或参考市场间的同步价格偏离与收敛压力。"
+    causal_channels: ["套利", "信息领先-滞后", "跨场流动性分割"]
+    interaction_dimensions: ["derivative_funding_state", "benchmark_return_series", "execution_friction"]
+    conceptual_expression: "normalized(local_mid - external_reference) / (cross_venue_cost + epsilon)"
+    normalization_guidance: "需要时间同步和货币/合约规范化；单场数据不能构造真实跨场价差。"
+  text_event_signal:
+    physics_meaning: "新闻、公告或语义事件经时间对齐后形成的外生信息冲击。"
+    causal_channels: ["情绪", "注意力", "基本面信息到达"]
+    interaction_dimensions: ["arrival_intensity", "return_series", "network_contagion"]
+    conceptual_expression: "event_sentiment * attention_weight * decay_since_event"
+    normalization_guidance: "价格反应不是文本信号本身；需要原始文本、模型分数和严格时间戳。"
+  wealth_or_preference:
+    physics_meaning: "投资者财富、风险厌恶和效用参数决定理论需求，通常不可由公开订单簿观测。"
+    causal_channels: ["风险承受能力", "效用最大化", "约束与禀赋"]
+    interaction_dimensions: ["inventory", "execution_friction", "liquidity_tail_risk"]
+    conceptual_expression: "optimal_demand(wealth, risk_aversion, expected_return, covariance)"
+    normalization_guidance: "保持 theoretical_only；禁止以价格、成交量或盘口压力伪造个体偏好。"
+
+# AST-ready 复合族：模板只使用 custom_formula 白名单中的函数和可执行 canonical 代理键。
+# 使用前必须确认所需键均在该论文的 proxy_variable_pool，且 weak_proxy 仅能作为显式影子替代。
+composite_factor_families:
+  flow_impact_asymmetry:
+    mechanism_meaning: "方向性订单流在波动和执行摩擦约束下对中点收益的非线性冲击。"
+    required_proxy_variables: [signed_order_flow, return_series, realized_volatility, execution_friction]
+    allowed_strengths: [derived, direct]
+    custom_formula_template: "zscore(safe_div(rolling_sum(signed_order_flow * return_series, 20), rolling_std(realized_volatility, 60) + abs(execution_friction) + 0.000001), 60)"
+    scaling_rule: "方向性流与收益相乘；波动和摩擦只进入有 epsilon 的分母。"
+    validation_notes: "不允许将原始成交量、价格水平或盘口深度直接相加。"
+  regime_gated_toxicity:
+    mechanism_meaning: "高风险状态下，大额方向性资金流相对于可见深度的逆向选择压力。"
+    required_proxy_variables: [signed_notional_flow, order_book_imbalance, realized_volatility, execution_friction]
+    allowed_strengths: [derived, direct]
+    custom_formula_template: "where(realized_volatility > rolling_mean(realized_volatility, 120), zscore(safe_div(signed_notional_flow * order_book_imbalance, abs(execution_friction) + 0.000001), 60), 0)"
+    scaling_rule: "以波动状态门控，金额流必须由无量纲摩擦缩放。"
+    validation_notes: "只刻画公开流毒性，不得声称识别知情交易者身份。"
+  queue_replenishment_velocity:
+    mechanism_meaning: "队列增减与补给失衡共同刻画流动性韧性及其方向。"
+    required_proxy_variables: [queue_change, depth_replenishment, unexplained_depth_depletion, order_book_imbalance]
+    allowed_strengths: [derived, weak_proxy]
+    custom_formula_template: "zscore(rolling_mean(queue_change * order_book_imbalance, 10) + safe_div(depth_replenishment - unexplained_depth_depletion, rolling_std(queue_change, 60) + 0.000001), 60)"
+    scaling_rule: "队列速度先滚动平滑，补给-撤离差必须按队列波动归一化。"
+    validation_notes: "无订单 ID 时只能作为可见盘口韧性代理。"
+  friction_adjusted_momentum:
+    mechanism_meaning: "经微观噪音、价差摩擦和盘口供给条件修正的短期动量。"
+    required_proxy_variables: [return_series, noise_scale, execution_friction, order_book_imbalance]
+    allowed_strengths: [derived, direct]
+    custom_formula_template: "zscore(safe_div(rolling_sum(return_series * order_book_imbalance, 20), rolling_std(noise_scale, 60) + abs(execution_friction) + 0.000001), 60)"
+    scaling_rule: "收益只与有界盘口压力相乘；噪音和摩擦以分母抑制杠杆。"
+    validation_notes: "适合价格发现/动量论文，不用于声称跨资产系统性收益。"
+  microprice_dislocation_reversal:
+    mechanism_meaning: "有效价格与中点价的错位在噪音和价差状态下的均值回归压力。"
+    required_proxy_variables: [efficient_price, mid_price, noise_scale, execution_friction]
+    allowed_strengths: [derived, direct]
+    custom_formula_template: "zscore(safe_div((efficient_price - mid_price) * rolling_mean(noise_scale, 20), abs(execution_friction) + rolling_std(noise_scale, 60) + 0.000001), 60)"
+    scaling_rule: "仅使用价格差而非价格水平；差值按噪音和摩擦缩放。"
+    validation_notes: "microprice 是可观测近似，不等同于隐含有效价格模型。"
+  activity_weighted_breakout:
+    mechanism_meaning: "在线区间位置在成交活跃和订单簿支持同时出现时的突破强度。"
+    required_proxy_variables: [online_intraday_range, volume_or_trade_activity, order_book_imbalance, realized_volatility]
+    allowed_strengths: [derived, direct]
+    custom_formula_template: "zscore(safe_div(online_intraday_range * log(abs(volume_or_trade_activity) + 1) * order_book_imbalance, rolling_std(realized_volatility, 60) + 0.000001), 60)"
+    scaling_rule: "活动量先取 log，区间位置与盘口压力只以乘法耦合。"
+    validation_notes: "只使用当期 expanding 区间，禁止引用收盘后完整日线范围。"
+  notional_depth_pressure:
+    mechanism_meaning: "方向性成交金额相对可见盘口压力与交易成本的冲击预算。"
+    required_proxy_variables: [signed_notional_flow, order_book_imbalance, execution_friction, trade_event_intensity]
+    allowed_strengths: [derived, direct]
+    custom_formula_template: "zscore(safe_div(rolling_sum(signed_notional_flow * order_book_imbalance, 20), abs(execution_friction) + rolling_std(trade_event_intensity, 60) + 0.000001), 60)"
+    scaling_rule: "以成交事件离散度和摩擦共同缩放金额冲击。"
+    validation_notes: "金额符号必须已验证为主动买卖方向；否则不得选用该族。"
+  shadow_regime_filter:
+    mechanism_meaning: "以弱代理状态分数进行风险过滤的影子机制，不可提升为真实后验状态。"
+    required_proxy_variables: [latent_regime, realized_volatility, noise_scale, execution_friction]
+    allowed_strengths: [weak_proxy, derived, direct]
+    custom_formula_template: "where(latent_regime > rolling_mean(latent_regime, 120), zscore(safe_div(realized_volatility, rolling_std(noise_scale, 60) + abs(execution_friction) + 0.000001), 60), 0)"
+    scaling_rule: "状态只作 where 门控，不可与其他原始变量线性加总。"
+    validation_notes: "生成因子注释必须包含 [Weak Proxy Fallback]；没有真实状态模型时不得宣称 posterior。"
+variables:
+  <<: *base_variables
+  mid_price:
+    proxy_strength: derived
+    aliases:
+    - midprice
+    - mid_quote
+    - midquote
+    - midpoint
+    - mid_price_series
+    - quoted_mid_t
+    - best_bid_price
+    - best_ask_price
+    - bid_price
+    - ask_price
+    - quote_mid
+    - best_quote_mid
+    local_proxy: (askP1 + bidP1) / 2
+    required_fields:
+    - askP1
+    - bidP1
+    local_proxies:
+    - expression: (askP1 * bidV1 + bidP1 * askV1) / (askV1 + bidV1)
+      required_fields:
+      - askP1
+      - bidP1
+      - askV1
+      - bidV1
+      allowed_functions: []
+      proxy_quality: high
+      confidence: 0.9
+      approximation_loss: Microprice reflects top-of-book pressure but still ignores deeper levels and hidden liquidity.
+    - expression: (askP1 + bidP1) / 2
+      required_fields:
+      - askP1
+      - bidP1
+      allowed_functions: []
+      proxy_quality: medium
+      confidence: 0.75
+      approximation_loss: Simple midpoint is stable and observable but ignores queue imbalance.
+    approximation_loss: Uses top-of-book midpoint only; ignores hidden liquidity and deeper-book fair value.
+    data_requirement: Local best bid/ask prices and optional best bid/ask sizes for microprice.
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.9
+    role: core_or_auxiliary
+  trade_price:
+    proxy_strength: derived
+    aliases:
+    - trade price
+    - transaction price
+    - execution price
+    - matched price
+    - print price
+    conditional_proxies:
+    - when_context: Tick_By_Tick_Trade
+      expression: close
+      required_fields:
+      - close
+      allowed_functions: []
+      proxy_quality: medium
+      confidence: 0.7
+      approximation_loss: Treats local close as the latest observed trade/print price when the paper variable is explicitly
+        transaction-level.
+    - when_context: L2_Snapshot
+      expression: (askP1 + bidP1) / 2
+      required_fields:
+      - askP1
+      - bidP1
+      allowed_functions: []
+      proxy_quality: low
+      confidence: 0.35
+      approximation_loss: Snapshot quotes do not observe transaction price; midpoint is only a quote-based fallback.
+    local_proxy: close
+    required_fields:
+    - close
+    local_proxies:
+    - expression: close
+      required_fields:
+      - close
+      allowed_functions: []
+      proxy_quality: medium
+      confidence: 0.6
+      approximation_loss: Default fallback assumes close is the latest observed trade price; use conditional_proxies when
+        data context is known.
+    approximation_loss: Trade price semantics depend on source context; quote snapshots should not be treated as executed
+      trade observations.
+    future_pipeline: Add explicit event-source typing so Tick_By_Tick_Trade and L2_Snapshot mappings are selected deterministically.
+    data_requirement: Event source context indicating whether close is a transaction print or quote snapshot fallback.
+    review_status: needs_review
+    reviewer: audit_agent
+    confidence: 0.6
+    role: core_or_auxiliary
+  execution_friction:
+    proxy_strength: derived
+    aliases:
+      confirmed:
+      - spread
+      - spread_t
+      - quoted_spread_t
+      - transaction_cost
+      - execution_cost
+      - execution_friction
+      - bid_ask_spread
+      - bid_ask_spread_series
+      - quoted_spread_series
+      - spread_proxy
+      - top_of_book_spread
+      - relative_spread
+      - quoted_cost
+      - depth_at_spread
+      - estimated_execution_cost_w
+      - avg_spread_i
+      - slippage
+      - TC
+      - unit_transaction_cost
+      - transaction_cost_estimate
+      - c_fixed
+      - proportional cost rate
+      - κ
+      suggested:
+      - slippage
+      - fee_slippage_estimate
+      - liquidity_proxy
+      - avg_spread_i
+    local_proxy: (askP1 - bidP1) / ((askP1 + bidP1) / 2)
+    required_fields:
+    - askP1
+    - bidP1
+    local_proxies:
+    - expression: (askP1 - bidP1) / ((askP1 + bidP1) / 2)
+      required_fields:
+      - askP1
+      - bidP1
+      allowed_functions: []
+      proxy_quality: high
+      confidence: 0.9
+      approximation_loss: Only captures visible quoted spread; excludes fees, realized slippage, impact, and queue cost.
+    data_requirement: Visible best bid and ask quotes.
+    approximation_loss: Only represents instantaneous visible spread, not true transaction cost, realized slippage, market
+      impact, or queue priority.
+    review_status: reviewed
+    reviewer: audit_web_daily
+    confidence: 0.9
+    role: core_or_auxiliary
+    evidence_examples:
+    - Gradient Boosting Model
+    - Intraday Application of Hidden Markov Models
+    last_reviewed_at: '2026-07-08T05:02:28.349524+00:00'
+  volume_or_trade_activity:
+    proxy_strength: derived
+    aliases:
+      confirmed:
+      - trade_volume
+      - volume_t
+      - turnover
+      - activity_intensity
+      - trade_activity_intensity
+      - trading_intensity
+      - activity_strength
+      - trading_activity
+      - bid_size
+      - ask_size
+      - bid_size_i
+      - ask_size_i
+      - total_volume
+      - total_volume_t
+      - orderbook_depth
+      - orderbook_depth_t
+      - orderbook_level_volumes
+      - orderbook_level_volumes_t
+      - depth_i
+      - transfer_value
+      - loan_amount
+      - depth_profile_over_time
+      - activity_surge
+      - abnormal_volume
+      - volume_intensity
+      - cancelled_volume_c
+      - posted_volume_c
+      - gross_trade_volume
+      - gross_volume
+      - absolute_volume
+      - buy_volume
+      - buy_volume_i
+      - sell_volume
+      - sell_volume_i
+      - net_buy_volume_t
+      - signed_volume_t
+      - tick 订单流
+      - order_flow_time_series
+      suggested:
+      - trade_count
+      - aggregate_order_flow_time_series
+    local_proxy: rolling_sum(abs(volume), 20)
+    required_fields:
+    - volume
+    local_proxies:
+    - expression: rolling_sum(abs(volume), 20)
+      required_fields:
+      - volume
+      allowed_functions:
+      - rolling_sum
+      - abs
+      proxy_quality: medium
+      confidence: 0.82
+      approximation_loss: Uses absolute signed volume to capture gross local activity; still lacks event-level trade count,
+        posted volume, and cancellation flow.
+    data_requirement: Local signed traded volume.
+    approximation_loss: Local gross activity is computable from absolute signed volume, but individual trade arrivals and
+      cancellations require event data.
+    review_status: reviewed
+    reviewer: audit_web_daily
+    confidence: 0.82
+    role: auxiliary
+    last_reviewed_at: '2026-07-08T07:26:11.790282+00:00'
+  benchmark_return_series:
+    proxy_strength: weak_proxy
+    aliases:
+      confirmed:
+      - benchmark_return
+      - benchmark_return_series
+      - market_return
+      - index_return
+      - etf_basket_return
+      - rolling_regression_beta
+      - residual_return
+      suggested:
+      - benchmark_or_residual
+      - index_residual
+      - beta_t
+      - market_model_residual
+    local_proxy: rolling_mean(log(((askP1 + bidP1) / 2) / last_close), 20) - rolling_mean(log(((askP1 + bidP1) / 2) / last_close), 120)
+    required_fields:
+    - askP1
+    - bidP1
+    - last_close
+    local_proxies:
+    - expression: rolling_mean(log(((askP1 + bidP1) / 2) / last_close), 20) - rolling_mean(log(((askP1 + bidP1) / 2) / last_close), 120)
+      required_fields:
+      - askP1
+      - bidP1
+      - last_close
+      allowed_functions:
+      - rolling_mean
+      - log
+      proxy_quality: low
+      confidence: 0.55
+      approximation_loss: Uses local de-meaned return as a weak residual/benchmark proxy; no synchronized index, beta,
+        ETF basket, or cross-sectional regression state is observed.
+    data_requirement: Synchronized benchmark, index, ETF basket, or cross-sectional return series plus rolling regression
+      state when residuals are required.
+    approximation_loss: A single local instrument cannot reproduce benchmark residual momentum or beta-adjusted returns.
+    future_pipeline: Add synchronized benchmark/index feeds and rolling regression outputs.
+    review_status: reviewed
+    missing_data:
+    - benchmark_index_returns
+    - etf_basket_returns
+    - rolling_regression_state
+    reviewer: human
+    confidence: 0.88
+    role: core
+  arrival_intensity:
+    proxy_strength: future_pipeline
+    aliases:
+      confirmed:
+      - lambda_t
+      - lambda
+      - intensity_t
+      - trade_intensity_t
+      - order_arrival_intensity
+      - hawkes_intensity
+      - dN_s
+      suggested:
+      - poisson_intensity
+      - counting_process
+      - event_count
+      - interarrival_times_of_large_orders
+    local_proxy: ''
+    required_fields: []
+    local_proxies: []
+    data_requirement: Event-time order or trade arrivals with timestamps and event labels.
+    approximation_loss: Snapshot aggregates cannot reconstruct point-process arrivals or Hawkes excitation.
+    future_pipeline: Ingest tick-by-tick order/trade events and fit online arrival-intensity features.
+    review_status: future_pipeline
+    missing_data:
+    - event_time_orders
+    - event_time_trades
+    - event_labels
+    reviewer: human
+    confidence: 0.86
+    role: core
+  liquidity_tail_risk:
+    proxy_strength: weak_proxy
+    aliases:
+      confirmed:
+      - liquidity_tail_risk
+      - tail_risk
+      - liquidity_risk
+      - extreme_liquidity
+      suggested:
+      - crash_risk
+      - drawdown_state
+      - tail_event
+    local_proxy: rolling_std(log(((askP1 + bidP1) / 2) / last_close), 120)
+    required_fields:
+    - askP1
+    - bidP1
+    - last_close
+    local_proxies:
+    - expression: rolling_std(log(((askP1 + bidP1) / 2) / last_close), 120)
+      required_fields:
+      - askP1
+      - bidP1
+      - last_close
+      allowed_functions:
+      - rolling_std
+      - log
+      proxy_quality: low
+      confidence: 0.7
+      approximation_loss: Volatility is only a weak proxy for rare liquidity-tail events without stress labels or external
+        market state.
+    data_requirement: Stress labels, large-trade event data, or cross-market liquidity state for faithful tail-risk measurement.
+    approximation_loss: Local trailing volatility misses event rarity, market-wide stress, and price-discovery delays.
+    missing_data:
+    - stress_event_labels
+    - large_trade_events
+    - cross_market_liquidity_state
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.7
+    role: core_or_auxiliary
+  adverse_selection:
+    proxy_strength: weak_proxy
+    aliases:
+      confirmed:
+      - adverse_selection
+      - informed_flow
+      - informed_fraction
+      - toxicity
+      - vpin
+      - pin
+      suggested:
+      - information_asymmetry
+      - informed_trading
+      - toxic_flow
+    local_proxy: abs(sign(diff((askP1 + bidP1) / 2)) * volume)
+    required_fields:
+    - askP1
+    - bidP1
+    - volume
+    local_proxies:
+    - expression: _where(diff((askP1 + bidP1) / 2) * sign(volume) > 0, log(abs(volume) + 1), 0)
+      required_fields:
+      - askP1
+      - bidP1
+      - volume
+      allowed_functions:
+      - _where
+      - diff
+      - sign
+      - log
+      - abs
+      proxy_quality: high
+      confidence: 0.82
+      approximation_loss: "信息流毒性 (Flow Toxicity): 识别价格变动方向与成交方向一致的大额交易。反映信息：捕捉知情交易者进场时对盘口造成的不可逆冲击，区分噪音成交与知情交易。"
+    - expression: abs(sign(diff((askP1 + bidP1) / 2)) * volume)
+      required_fields:
+      - askP1
+      - bidP1
+      - volume
+      allowed_functions:
+      - abs
+      - sign
+      - diff
+      proxy_quality: medium
+      confidence: 0.74
+      approximation_loss: Infers toxic flow from public quote movement and volume; does not observe informed trader identity
+        or aggressor labels.
+    data_requirement: Aggressor side, participant category, VPIN/PIN inputs, or informed-flow labels.
+    approximation_loss: Local public flow pressure is not equivalent to adverse selection.
+    missing_data:
+    - aggressor_side
+    - participant_identity
+    - informed_flow_labels
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.74
+    role: core
+  systematic_flow:
+    proxy_strength: weak_proxy
+    aliases:
+      confirmed:
+      - cti
+      - common_flow
+      - systematic_flow
+      - common_liquidity
+      - market_wide_flow
+      suggested:
+      - cross_sectional_flow
+      - marketwide_liquidity
+      - common_trading_intensity
+    local_proxy: rolling_mean(((bidV1 + bidV2 + bidV3 + bidV4 + bidV5) - (askV1 + askV2 + askV3 + askV4 + askV5)) * volume, 60)
+    required_fields:
+    - bidV1
+    - bidV2
+    - bidV3
+    - bidV4
+    - bidV5
+    - askV1
+    - askV2
+    - askV3
+    - askV4
+    - askV5
+    - volume
+    local_proxies:
+    - expression: rolling_mean(((bidV1 + bidV2 + bidV3 + bidV4 + bidV5) - (askV1 + askV2 + askV3 + askV4 + askV5)) * volume, 60)
+      required_fields:
+      - bidV1
+      - bidV2
+      - bidV3
+      - bidV4
+      - bidV5
+      - askV1
+      - askV2
+      - askV3
+      - askV4
+      - askV5
+      - volume
+      allowed_functions:
+      - rolling_mean
+      proxy_quality: low
+      confidence: 0.5
+      approximation_loss: Uses persistent local book-flow pressure as a weak common-flow proxy; no cross-sectional assets,
+        loadings, or market-wide flow are estimated.
+    data_requirement: Cross-sectional synchronized assets, loadings, or market-wide flow series.
+    approximation_loss: Single-instrument local fields cannot identify systematic/common flow components.
+    future_pipeline: Build cross-sectional flow and covariance features.
+    review_status: reviewed
+    missing_data:
+    - cross_sectional_assets
+    - market_wide_flow
+    - flow_loadings
+    reviewer: human
+    confidence: 0.76
+    role: core
+  lob_state_divergence:
+    proxy_strength: derived
+    aliases:
+      confirmed:
+      - wobi
+      - level_imbalance
+      - level_imb
+      - book_pressure
+      - depth_pressure
+      - depth_ratio
+      - lob_state_divergence
+      - imbalance
+      - imbalance_t
+      - of_imbalance_t
+      - depth_imbalance_l5
+      - visible_depth_pressure
+      - order_imbalance_magnitude_series
+      suggested:
+      - weighted_order_book_imbalance
+      - multi_level_imbalance
+      - order_book_state_gap
+    local_proxy: (bidV1 + bidV2 + bidV3 + bidV4 + bidV5 - askV1 - askV2 - askV3 - askV4 - askV5) / (bidV1 + bidV2 + bidV3
+      + bidV4 + bidV5 + askV1 + askV2 + askV3 + askV4 + askV5)
+    required_fields:
+    - bidV1
+    - bidV2
+    - bidV3
+    - bidV4
+    - bidV5
+    - askV1
+    - askV2
+    - askV3
+    - askV4
+    - askV5
+    local_proxies:
+    - expression: (bidV1 + bidV2 + bidV3 + bidV4 + bidV5 - askV1 - askV2 - askV3 - askV4 - askV5) / (bidV1 + bidV2 + bidV3
+        + bidV4 + bidV5 + askV1 + askV2 + askV3 + askV4 + askV5)
+      required_fields:
+      - bidV1
+      - bidV2
+      - bidV3
+      - bidV4
+      - bidV5
+      - askV1
+      - askV2
+      - askV3
+      - askV4
+      - askV5
+      allowed_functions: []
+      proxy_quality: high
+      confidence: 0.82
+      approximation_loss: Multi-level visible depth imbalance is computable but excludes hidden liquidity and queue position.
+    data_requirement: Visible multi-level order-book depth.
+    approximation_loss: Does not observe hidden liquidity, cancellations, or queue priority.
+    review_status: reviewed
+    reviewer: audit_web_daily
+    confidence: 0.82
+    role: core_or_auxiliary
+    last_reviewed_at: '2026-07-08T07:26:11.790268+00:00'
+  efficient_price:
+    proxy_strength: derived
+    aliases:
+      confirmed:
+      - efficient_price
+      - fair_value
+      - p_star
+      - pstar
+      - latent_price
+      - fundamental_price
+      - microprice
+      - queue_weighted_mid
+      suggested:
+      - p_hat
+      - noise_free_price
+      - efficient_mid
+    local_proxy: (askP1 * bidV1 + bidP1 * askV1) / (askV1 + bidV1)
+    required_fields:
+    - askP1
+    - bidP1
+    - askV1
+    - bidV1
+    local_proxies:
+    - expression: (askP1 * bidV1 + bidP1 * askV1) / (askV1 + bidV1)
+      required_fields:
+      - askP1
+      - bidP1
+      - askV1
+      - bidV1
+      allowed_functions: []
+      proxy_quality: medium
+      confidence: 0.76
+      approximation_loss: Microprice is a quote-pressure fair-value proxy, not a latent efficient price estimate.
+    data_requirement: Top-of-book prices and queue sizes; latent efficient price requires a filtering model.
+    approximation_loss: Ignores latent price filtering, hidden liquidity, and microstructure-noise model assumptions.
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.76
+    role: core
+  noise_scale:
+    proxy_strength: derived
+    aliases:
+      confirmed:
+      - noise_scale
+      - sigma_noise
+      - microstructure_noise
+      - tick_vol
+      - quote_change_noise
+      - residual_volatility
+      suggested:
+      - epsilon_noise
+      - quote_noise
+      - residual_noise
+    local_proxy: rolling_std(diff((askP1 + bidP1) / 2), 60)
+    required_fields:
+    - askP1
+    - bidP1
+    local_proxies:
+    - expression: rolling_std(diff((askP1 + bidP1) / 2), 60)
+      required_fields:
+      - askP1
+      - bidP1
+      allowed_functions:
+      - rolling_std
+      - diff
+      proxy_quality: medium
+      confidence: 0.74
+      approximation_loss: Quote-change dispersion approximates local noise scale but is not a model-estimated noise variance.
+    data_requirement: Quote series; faithful latent noise requires model residuals.
+    approximation_loss: Does not separate efficient-price moves from microstructure noise.
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.74
+    role: auxiliary
+  candlestick_geometry:
+    proxy_strength: derived
+    aliases:
+      confirmed:
+      - candlestick
+      - candle_body
+      - wick
+      - shadow
+      - ohlc_geometry
+      - Candles
+      - online_ohlc
+      - ohlc_so_far
+      - intraday_candle
+      suggested:
+      - candle
+      - upper_shadow
+      - lower_shadow
+    local_proxy: abs(close - first(close)) / (expanding_max(close) - expanding_min(close) + 1e-6)
+    required_fields:
+    - close
+    local_proxies:
+    - expression: abs(close - first(close)) / (expanding_max(close) - expanding_min(close) + 1e-6)
+      required_fields:
+      - close
+      allowed_functions:
+      - abs
+      - first
+      - expanding_max
+      - expanding_min
+      proxy_quality: medium
+      confidence: 0.82
+      approximation_loss: Builds online candle body/range geometry from close so far; does not use future full-session high/low.
+    - expression: (close - expanding_min(close)) / (expanding_max(close) - expanding_min(close) + 1e-6)
+      required_fields:
+      - close
+      allowed_functions:
+      - expanding_min
+      - expanding_max
+      proxy_quality: medium
+      confidence: 0.80
+      approximation_loss: Online range position uses high/low observed so far only, not final daily range.
+    data_requirement: Tick close or mid series within the current session.
+    missing_data: []
+    approximation_loss: Online OHLC geometry is computable without look-ahead, but differs from finalized daily candle geometry.
+    review_status: reviewed
+    reviewer: audit_web_daily
+    confidence: 0.82
+    role: auxiliary
+    last_reviewed_at: '2026-07-07T03:08:17.324181+00:00'
+  session_open_price:
+    proxy_strength: derived
+    aliases:
+    - session_open
+    - session_open_price
+    - open
+    - open_price
+    - opening_price
+    - intraday_open
+    - day_open
+    local_proxy: coalesce(daily_open, first(close))
+    required_fields:
+    - close
+    local_proxies:
+    - expression: daily_open
+      required_fields:
+      - daily_open
+      allowed_functions: []
+      proxy_quality: high
+      confidence: 0.93
+      approximation_loss: Uses official daily open joined from the universe daily feature table; assumes the field is available before intraday signal calculation.
+    - expression: first(close)
+      required_fields:
+      - close
+      allowed_functions:
+      - first
+      proxy_quality: medium_high
+      confidence: 0.86
+      approximation_loss: Uses first available tick close as session open; exact auction/open print may differ.
+    data_requirement: Official daily open when available; otherwise tick close or mid series sorted within the current session.
+    missing_data: []
+    approximation_loss: Falls back to current-session first observed local price when official daily_open is not joined.
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.86
+    role: auxiliary
+  online_vwap_twap:
+    proxy_strength: derived
+    aliases:
+    - vwap
+    - vwap_so_far
+    - online_vwap
+    - intraday_vwap
+    - twap
+    - twap_so_far
+    - online_twap
+    - volume_weighted_average_price
+    - time_weighted_average_price
+    local_proxy: cumsum(abs(money)) / (cumsum(abs(volume)) + 1e-6)
+    required_fields:
+    - money
+    - volume
+    local_proxies:
+    - expression: cumsum(abs(money)) / (cumsum(abs(volume)) + 1e-6)
+      required_fields:
+      - money
+      - volume
+      allowed_functions:
+      - cumsum
+      - abs
+      proxy_quality: high
+      confidence: 0.9
+      approximation_loss: Computes online VWAP from absolute signed notional over absolute signed volume; assumes money and volume signs are consistent.
+    - expression: expanding_mean(close)
+      required_fields:
+      - close
+      allowed_functions:
+      - expanding_mean
+      proxy_quality: medium
+      confidence: 0.78
+      approximation_loss: Online TWAP ignores irregular tick spacing and trade size.
+    data_requirement: Local signed traded notional and signed volume for online VWAP; close series for TWAP.
+    missing_data: []
+    approximation_loss: Online VWAP/TWAP uses data observed up to t only and may differ from full-session official VWAP.
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.86
+    role: auxiliary
+  online_intraday_range:
+    proxy_strength: derived
+    aliases:
+    - high_so_far
+    - low_so_far
+    - intraday_high_so_far
+    - intraday_low_so_far
+    - online_high
+    - online_low
+    - high_low_range
+    - intraday_range
+    - range_so_far
+    - range_position
+    - range_position_so_far
+    - drawdown_from_intraday_high
+    - bounce_from_intraday_low
+    local_proxy: (close - expanding_min(close)) / (expanding_max(close) - expanding_min(close) + 1e-6)
+    required_fields:
+    - close
+    local_proxies:
+    - expression: expanding_max(close)
+      required_fields:
+      - close
+      allowed_functions:
+      - expanding_max
+      proxy_quality: medium_high
+      confidence: 0.86
+      approximation_loss: High so far is online and avoids full-day look-ahead.
+    - expression: expanding_min(close)
+      required_fields:
+      - close
+      allowed_functions:
+      - expanding_min
+      proxy_quality: medium_high
+      confidence: 0.86
+      approximation_loss: Low so far is online and avoids full-day look-ahead.
+    - expression: (expanding_max(close) - expanding_min(close)) / (first(close) + 1e-6)
+      required_fields:
+      - close
+      allowed_functions:
+      - expanding_max
+      - expanding_min
+      - first
+      proxy_quality: medium
+      confidence: 0.82
+      approximation_loss: Online range uses observed-so-far high/low, not finalized daily range.
+    - expression: (close - expanding_min(close)) / (expanding_max(close) - expanding_min(close) + 1e-6)
+      required_fields:
+      - close
+      allowed_functions:
+      - expanding_min
+      - expanding_max
+      proxy_quality: medium
+      confidence: 0.82
+      approximation_loss: Online range position is computable but unstable early in the session.
+    - expression: (expanding_max(close) - close) / (expanding_max(close) + 1e-6)
+      required_fields:
+      - close
+      allowed_functions:
+      - expanding_max
+      proxy_quality: medium
+      confidence: 0.80
+      approximation_loss: Drawdown from intraday high uses current observed high only.
+    data_requirement: Tick close or mid series sorted within the current session.
+    missing_data: []
+    approximation_loss: Online intraday range features avoid look-ahead but differ from completed-bar or completed-day fields.
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.84
+    role: auxiliary
+  derivative_funding_state:
+    proxy_strength: future_pipeline
+    aliases:
+      confirmed:
+      - funding_rate
+      - funding_state
+      - open_interest
+      - futures_basis
+      - perpetual_basis
+      - derivative_basis
+      suggested:
+      - future_basis
+      - perp_funding
+      - derivative_state
+    local_proxy: ''
+    required_fields: []
+    local_proxies: []
+    data_requirement: Derivative funding, basis, and open-interest feeds.
+    approximation_loss: Spot/local order-book fields cannot reproduce derivative funding state.
+    future_pipeline: Add derivative market data feeds aligned to local tick time.
+    review_status: future_pipeline
+    missing_data:
+    - funding_rate
+    - open_interest
+    - futures_basis
+    reviewer: human
+    confidence: 0.86
+    role: core_or_auxiliary
+  amm_pool_state:
+    proxy_strength: future_pipeline
+    aliases:
+      confirmed:
+      - amm_pool_state
+      - pool_reserve
+      - reserve_ratio
+      - liquidity_pool
+      - constant_product
+      suggested:
+      - amm
+      - dex_pool
+      - pool_depth
+    local_proxy: ''
+    required_fields: []
+    local_proxies: []
+    data_requirement: AMM reserves, swap events, and pool liquidity state.
+    approximation_loss: Centralized order-book fields cannot reconstruct AMM pool state.
+    future_pipeline: Add DEX/AMM pool state ingestion.
+    review_status: future_pipeline
+    missing_data:
+    - amm_reserves
+    - swap_events
+    - pool_liquidity
+    reviewer: human
+    confidence: 0.84
+    role: core
+  network_contagion:
+    proxy_strength: future_pipeline
+    aliases:
+      confirmed:
+      - network_contagion
+      - spillover
+      - graph_connectedness
+      - connectedness
+      suggested:
+      - network
+      - attention_graph
+      - neighbor_shock
+      - contagion
+    local_proxy: ''
+    required_fields: []
+    local_proxies: []
+    data_requirement: Cross-asset graph, attention/network edges, or spillover model state.
+    approximation_loss: Single-instrument local fields cannot identify network contagion.
+    future_pipeline: Add graph/cross-asset dependency features.
+    review_status: future_pipeline
+    missing_data:
+    - asset_graph
+    - spillover_edges
+    - cross_asset_state
+    reviewer: human
+    confidence: 0.8
+    role: core_or_auxiliary
+  order_book_imbalance:
+    proxy_strength: derived
+    aliases:
+    - obi
+    - book_imbalance
+    - depth_imbalance
+    - liquidity_imbalance
+    - order_book_imbalance
+    - order_flow_imbalance
+    - imbalance
+    - imbalance_t
+    - obi_l1
+    - obi_l5
+    - depth_pressure_l1
+    - depth_pressure_l5
+    - imb_t
+    - current_orderbook
+    - book_snapshot_bid_size
+    - book_snapshot_ask_size
+    - book_snapshot.bid_size[p+iΔp]
+    - book_snapshot.ask_size[p+iΔp]
+    local_proxy: (bidV1 - askV1) / (bidV1 + askV1 + eps)
+    required_fields:
+    - bidV1
+    - askV1
+    local_proxies:
+    - expression: >
+        (log(bidV1+1)*1.0 + log(bidV2+1)*0.8 + log(bidV3+1)*0.6 + log(bidV4+1)*0.4 + log(bidV5+1)*0.2 - 
+         (log(askV1+1)*1.0 + log(askV2+1)*0.8 + log(askV3+1)*0.6 + log(askV4+1)*0.4 + log(askV5+1)*0.2)) / 
+        (log(bidV1+1)*1.0 + log(bidV2+1)*0.8 + log(bidV3+1)*0.6 + log(bidV4+1)*0.4 + log(bidV5+1)*0.2 +
+         log(askV1+1)*1.0 + log(askV2+1)*0.8 + log(askV3+1)*0.6 + log(askV4+1)*0.4 + log(askV5+1)*0.2 + 1e-6)
+      required_fields:
+      - bidV1
+      - bidV2
+      - bidV3
+      - bidV4
+      - bidV5
+      - askV1
+      - askV2
+      - askV3
+      - askV4
+      - askV5
+      allowed_functions:
+      - log
+      proxy_quality: high
+      confidence: 0.92
+      approximation_loss: "深度加权对数失衡 (Deep Log-Decay Imbalance): 使用 1/i 的衰减系数处理 5 层深度。反映信息：捕捉远离盘口的潜在挂单压力，并利用对数算子平滑大额挂单的非线性冲击能量。"
+    - expression: (bidV1 + bidV2 + bidV3 + bidV4 + bidV5 - askV1 - askV2 - askV3 - askV4 - askV5) / (bidV1 + bidV2 + bidV3
+        + bidV4 + bidV5 + askV1 + askV2 + askV3 + askV4 + askV5)
+      required_fields:
+      - bidV1
+      - bidV2
+      - bidV3
+      - bidV4
+      - bidV5
+      - askV1
+      - askV2
+      - askV3
+      - askV4
+      - askV5
+      allowed_functions: []
+      proxy_quality: medium_high
+      confidence: 0.88
+      approximation_loss: Multi-level visible depth imbalance is stronger than L1 but still excludes hidden liquidity and
+        queue priority.
+    - expression: (bidV1 - askV1) / (bidV1 + askV1)
+      required_fields:
+      - bidV1
+      - askV1
+      allowed_functions: []
+      proxy_quality: medium
+      confidence: 0.65
+      approximation_loss: L1 imbalance is a useful baseline but too shallow for many LOB mechanisms.
+    approximation_loss: Local proxy can use visible depth only; queue priority and hidden liquidity are absent.
+    data_requirement: Visible bid/ask depth by level.
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.88
+    role: core_or_auxiliary
+  signed_order_flow:
+    proxy_strength: derived
+    aliases:
+      confirmed:
+      - correlated_orderflow_t
+      - order_flow_rate
+      - order_flow_rate_t
+      - order_flow
+      - signed_volume
+      - signed_volume_series
+      - signed_trade_volume
+      - signed_trade_volume_t
+      - net_buy_volume
+      - net_buy_volume_t
+      - net_aggressive_volume
+      - aggressive_volume
+      - active_buy_volume
+      - active_sell_volume
+      - trade_imbalance
+      - trade_imbalance_t
+      - order_side
+      - trade_direction
+      - trade_sign (\epsilon, +1/-1)
+      - aggressor_direction
+      - order_imbalance_magnitude_series
+      - trade_sign
+      - aggressor_direction
+      - aggressor_sign_series_i
+      - buy_sell_pressure
+      - active_buy_pressure
+      - active_sell_pressure
+      - correlated_orderflow_t
+      suggested: []
+    required_fields:
+    - volume
+    local_proxies:
+    - expression: volume
+      required_fields:
+      - volume
+      allowed_functions: []
+      proxy_quality: high
+      confidence: 0.86
+      approximation_loss: Uses local signed volume directly; assumes positive and negative signs encode active buy and active
+        sell direction consistently.
+    - expression: rolling_sum(volume, 20)
+      required_fields:
+      - volume
+      allowed_functions:
+      - rolling_sum
+      proxy_quality: high
+      confidence: 0.84
+      approximation_loss: Windowed net active flow is computable from signed volume, but sign convention must remain stable
+        across data sources.
+    - expression: (volume + abs(volume)) / 2
+      required_fields:
+      - volume
+      allowed_functions:
+      - abs
+      proxy_quality: medium
+      confidence: 0.8
+      approximation_loss: Approximates active-buy volume under the convention that positive volume is active buying.
+    - expression: (abs(volume) - volume) / 2
+      required_fields:
+      - volume
+      allowed_functions:
+      - abs
+      proxy_quality: medium
+      confidence: 0.8
+      approximation_loss: Approximates active-sell volume under the convention that negative volume is active selling.
+    approximation_loss: Signed volume makes active flow locally computable, but the registry still assumes the sign convention
+      is stable and documented by the data source.
+    data_requirement: Local signed traded volume where positive and negative signs encode active buy and active sell direction.
+    missing_data: []
+    review_status: reviewed
+    reviewer: audit_web_daily
+    confidence: 0.86
+    role: core_or_auxiliary
+    last_reviewed_at: '2026-07-08T07:26:11.790257+00:00'
+  signed_notional_flow:
+    last_reviewed_at: '2026-07-08T05:02:28.349586+00:00'
+    proxy_strength: derived
+    aliases:
+    - money_flow
+    - signed_money_flow
+    - signed_notional
+    - signed_notional_t
+    - signed_traded_notional
+    - traded_notional
+    - notional
+    - notional_t
+    - gross_notional
+    - gross_traded_notional
+    - dollar_volume
+    - buy_notional
+    - sell_notional
+    - active_buy_notional
+    - active_sell_notional
+    - net_buy_notional
+    - notional_imbalance
+    - notional_imbalance_t
+    local_proxy: money
+    required_fields:
+    - money
+    local_proxies:
+    - expression: money
+      required_fields:
+      - money
+      allowed_functions: []
+      proxy_quality: high
+      confidence: 0.9
+      approximation_loss: Uses local signed traded notional directly; assumes money sign follows active buy/sell direction.
+    - expression: abs(money)
+      required_fields:
+      - money
+      allowed_functions:
+      - abs
+      proxy_quality: high
+      confidence: 0.9
+      approximation_loss: Gross notional ignores active buy/sell direction.
+    - expression: (money + abs(money)) / 2
+      required_fields:
+      - money
+      allowed_functions:
+      - abs
+      proxy_quality: high
+      confidence: 0.88
+      approximation_loss: Active-buy notional assumes positive money is active buying.
+    - expression: (abs(money) - money) / 2
+      required_fields:
+      - money
+      allowed_functions:
+      - abs
+      proxy_quality: high
+      confidence: 0.88
+      approximation_loss: Active-sell notional assumes negative money is active selling.
+    - expression: rolling_sum(money, 20) / (rolling_sum(abs(money), 20) + 1e-6)
+      required_fields:
+      - money
+      allowed_functions:
+      - rolling_sum
+      - abs
+      proxy_quality: high
+      confidence: 0.86
+      approximation_loss: Windowed notional imbalance is computable but depends on stable money sign convention.
+    approximation_loss: Signed money makes active notional flow locally computable, but sign convention must remain stable across data sources.
+    data_requirement: Local signed traded notional where positive and negative signs encode active buy and active sell direction.
+    missing_data: []
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.9
+    role: core_or_auxiliary
+  trade_event_intensity:
+    proxy_strength: derived
+    aliases:
+      confirmed:
+      - trade
+      - tick
+      - tick_record
+      - tick_trade
+      - trade_event
+      - per_trade_tick
+      - trade_intensity_t
+      - trade_time
+      - trade_timestamp
+      - timestamp
+      - tick_index
+      - event_count
+      - event_count_t
+      - dN_s
+      - dN_t
+      - counting_process
+      - trade_count
+      - trade_count_t
+      - event_indicator
+      - event_indicator_t
+      - tick_event_count
+      - event_time_series
+      suggested: []
+    local_proxy: rolling_sum(abs(sign(volume)), 20)
+    required_fields:
+    - volume
+    local_proxies:
+    - expression: abs(sign(volume))
+      required_fields:
+      - volume
+      allowed_functions:
+      - abs
+      - sign
+      proxy_quality: high
+      confidence: 0.9
+      approximation_loss: With one row per trade, non-zero signed volume directly marks a trade event; it does not estimate hidden order arrivals.
+    - expression: rolling_sum(abs(sign(volume)), 20)
+      required_fields:
+      - volume
+      allowed_functions:
+      - rolling_sum
+      - abs
+      - sign
+      proxy_quality: medium
+      confidence: 0.82
+      approximation_loss: Counts non-zero signed-volume ticks as trade events; does not reconstruct hidden order submissions
+        or multiple prints collapsed into one row.
+    - expression: cumsum(abs(sign(volume)))
+      required_fields:
+      - volume
+      allowed_functions:
+      - cumsum
+      - abs
+      - sign
+      proxy_quality: medium
+      confidence: 0.84
+      approximation_loss: Cumulative trade-event clock is directly computable for per-trade rows but is session-path dependent and not a stationary intensity estimate.
+    approximation_loss: Tick/event intensity is locally computable from signed volume, but Hawkes latent intensity and true
+      order arrivals remain model-dependent.
+    data_requirement: Local signed volume at tick/event frequency.
+    missing_data: []
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.82
+    role: auxiliary
+  order_size:
+    proxy_strength: derived
+    aliases:
+    - signed_trade_size
+    - trade sizes
+    - trade_size
+    - trade_size_i
+    confirmed:
+      - order_size
+      - order_size_t
+      - trade_size
+      - trade_size (可选用于加权)
+      - trade_size (用于加权/拟合)
+      - trade_size_series
+      - trade_sizes
+      - signed_order_size
+      - signed_order_size_t
+      - absolute_order_size
+      - absolute_trade_size
+      - active_order_size
+      - signed_trade_size
+    suggested: []
+    required_fields:
+    - volume
+    local_proxies:
+    - expression: abs(volume)
+      required_fields:
+      - volume
+      allowed_functions:
+      - abs
+      proxy_quality: high
+      confidence: 0.86
+      approximation_loss: Uses absolute signed volume as per-tick trade size; cannot split aggregated ticks into multiple
+        child events.
+    - expression: rolling_sum(abs(volume), 20)
+      required_fields:
+      - volume
+      allowed_functions:
+      - rolling_sum
+      - abs
+      proxy_quality: medium
+      confidence: 0.82
+      approximation_loss: Windowed trade size/activity aggregation loses individual event granularity.
+    approximation_loss: Signed volume gives local event size, but row aggregation and data-vendor conventions may merge
+      multiple trades.
+    data_requirement: Local signed volume at tick/event frequency.
+    missing_data: []
+    review_status: reviewed
+    reviewer: audit_web_daily
+    confidence: 0.86
+    role: core_or_auxiliary
+    last_reviewed_at: '2026-07-08T07:26:11.790197+00:00'
+  queue_change:
+    last_reviewed_at: '2026-07-08T05:02:28.349572+00:00'
+    proxy_strength: derived
+    aliases:
+    - queue_change
+    - queue_change_t
+    - bid_queue_change
+    - ask_queue_change
+    - queue_imbalance_change
+    - book_queue_change
+    - depth_change
+    - depth_change_t
+    - lob_depth_change
+    local_proxy: diff(bidV1 + bidV2 + bidV3 + bidV4 + bidV5) - diff(askV1 + askV2 + askV3 + askV4 + askV5)
+    required_fields:
+    - bidV1
+    - bidV2
+    - bidV3
+    - bidV4
+    - bidV5
+    - askV1
+    - askV2
+    - askV3
+    - askV4
+    - askV5
+    local_proxies:
+    - expression: diff(bidV1 + bidV2 + bidV3 + bidV4 + bidV5) - diff(askV1 + askV2 + askV3 + askV4 + askV5)
+      required_fields:
+      - bidV1
+      - bidV2
+      - bidV3
+      - bidV4
+      - bidV5
+      - askV1
+      - askV2
+      - askV3
+      - askV4
+      - askV5
+      allowed_functions:
+      - diff
+      proxy_quality: medium_high
+      confidence: 0.82
+      approximation_loss: Uses visible top-5 depth changes; queue priority, order IDs, and hidden liquidity are not observed.
+    - expression: diff(bidV1) - diff(askV1)
+      required_fields:
+      - bidV1
+      - askV1
+      allowed_functions:
+      - diff
+      proxy_quality: medium
+      confidence: 0.72
+      approximation_loss: L1 queue change is shallow and can miss deeper replenishment or depletion.
+    approximation_loss: Visible queue changes are computable from L2 snapshots, but cannot separate new orders, cancellations,
+      trades, and price-level shifts perfectly.
+    data_requirement: Visible bid/ask depth snapshots by level.
+    missing_data:
+    - order_id
+    - queue_position
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.82
+    role: auxiliary
+  depth_replenishment:
+    proxy_strength: derived
+    aliases:
+    - posted_volume
+    - posted_volume_t
+    - new_order_proxy
+    - quote_replenishment
+    - depth_replenishment
+    - liquidity_supply
+    - replenishment_pressure
+    local_proxy: clip(diff(bidV1 + bidV2 + bidV3 + bidV4 + bidV5), 0, inf) - clip(diff(askV1 + askV2 + askV3 + askV4 + askV5), 0, inf)
+    required_fields:
+    - bidV1
+    - bidV2
+    - bidV3
+    - bidV4
+    - bidV5
+    - askV1
+    - askV2
+    - askV3
+    - askV4
+    - askV5
+    local_proxies:
+    - expression: clip(diff(bidV1 + bidV2 + bidV3 + bidV4 + bidV5), 0, inf) - clip(diff(askV1 + askV2 + askV3 + askV4 + askV5), 0, inf)
+      required_fields:
+      - bidV1
+      - bidV2
+      - bidV3
+      - bidV4
+      - bidV5
+      - askV1
+      - askV2
+      - askV3
+      - askV4
+      - askV5
+      allowed_functions:
+      - clip
+      - diff
+      proxy_quality: medium
+      confidence: 0.76
+      approximation_loss: Positive visible depth changes approximate replenishment; cannot align orders across price-level
+        shifts or identify hidden liquidity.
+    approximation_loss: Replenishment is a visible-book proxy, not a true order-add event stream.
+    data_requirement: Visible bid/ask depth snapshots by level.
+    missing_data:
+    - order_add_events
+    - order_id
+    - price_level_alignment
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.76
+    role: auxiliary
+  unexplained_depth_depletion:
+    proxy_strength: weak_proxy
+    aliases:
+    - cancel_order
+    - cancellation
+    - cancellation_t
+    - cancel_pressure
+    - depth_depletion
+    - unexplained_depletion
+    - liquidity_withdrawal
+    - order_cancellation_proxy
+    local_proxy: clip(-diff(bidV1 + bidV2 + bidV3 + bidV4 + bidV5), 0, inf) - clip(-diff(askV1 + askV2 + askV3 + askV4 + askV5), 0, inf)
+    required_fields:
+    - bidV1
+    - bidV2
+    - bidV3
+    - bidV4
+    - bidV5
+    - askV1
+    - askV2
+    - askV3
+    - askV4
+    - askV5
+    local_proxies:
+    - expression: clip(-diff(bidV1 + bidV2 + bidV3 + bidV4 + bidV5), 0, inf) - clip(-diff(askV1 + askV2 + askV3 + askV4 + askV5), 0, inf)
+      required_fields:
+      - bidV1
+      - bidV2
+      - bidV3
+      - bidV4
+      - bidV5
+      - askV1
+      - askV2
+      - askV3
+      - askV4
+      - askV5
+      allowed_functions:
+      - clip
+      - diff
+      proxy_quality: low_medium
+      confidence: 0.68
+      approximation_loss: Visible depth drops mix cancellations, trade depletion, queue shifts, and price-level changes.
+    approximation_loss: Cancellation pressure is only weakly proxied from unexplained visible depth depletion without order IDs
+      or explicit cancel messages.
+    data_requirement: Visible bid/ask depth snapshots by level; faithful cancellation requires order-event messages.
+    missing_data:
+    - cancellation_events
+    - order_id
+    - queue_position
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.68
+    role: auxiliary
+  inventory:
+    proxy_strength: weak_proxy
+    aliases:
+    - inventory_t
+    - holding
+    - holdings
+    - position
+    - portfolio_weight
+    - portfolio_weight_t
+    - position_size_t
+    - position_size
+    - tradeable_inventory constraints
+    - dealer_inventory
+    - market_maker_inventory
+    - hedging_pressure
+    local_proxy: rolling_sum(money, 20) or book/trade pressure
+    required_fields:
+    - money
+    - volume
+    - totalDeputeBuy
+    - totalDeputeSell
+    local_proxies:
+    - expression: rolling_sum(money, 20)
+      required_fields:
+      - money
+      allowed_functions:
+      - rolling_sum
+      proxy_quality: low
+      confidence: 0.35
+      approximation_loss: Signed traded notional is public flow pressure, not private market-maker inventory.
+    - expression: (totalDeputeBuy - totalDeputeSell) / (totalDeputeBuy + totalDeputeSell)
+      required_fields:
+      - totalDeputeBuy
+      - totalDeputeSell
+      allowed_functions: []
+      proxy_quality: low
+      confidence: 0.3
+      approximation_loss: Aggregate quote-side pressure is not a position or inventory state.
+    approximation_loss: Local fields measure public flow or pressure, not a market maker's private inventory.
+    data_requirement: Market-maker or dealer inventory for faithful concept; local public flow for weak proxy only.
+    missing_data:
+    - dealer_inventory
+    - market_maker_positions
+    - participant_positions
+    review_status: reviewed
+    reviewer: human
+    confidence: 0.35
+    role: core
+  latent_regime:
+    proxy_strength: weak_proxy
+    aliases:
+    - hidden_state
+    - hmm_state
+    - regime
+    - latent_state
+    - state_latent_probs
+    - posterior_t
+    - posterior_prob
+    - posterior_probability
+    - regime_probability
+    local_proxy: rolling_std(log(((askP1 + bidP1) / 2) / last_close), 60) + abs(((bidV1 + bidV2 + bidV3 + bidV4 + bidV5) - (askV1 + askV2 + askV3 + askV4 + askV5)) / ((bidV1 + bidV2 + bidV3 + bidV4 + bidV5) + (askV1 + askV2 + askV3 + askV4 + askV5)))
+    required_fields:
+    - askP1
+    - bidP1
+    - last_close
+    - bidV1
+    - bidV2
+    - bidV3
+    - bidV4
+    - bidV5
+    - askV1
+    - askV2
+    - askV3
+    - askV4
+    - askV5
+    - close
+    - volume
+    local_proxies:
+    - expression: rolling_std(log(((askP1 + bidP1) / 2) / last_close), 60) + abs(((bidV1 + bidV2 + bidV3 + bidV4 + bidV5) - (askV1 + askV2 + askV3 + askV4 + askV5)) / ((bidV1 + bidV2 + bidV3 + bidV4 + bidV5) + (askV1 + askV2 + askV3 + askV4 + askV5)))
+      required_fields:
+      - askP1
+      - bidP1
+      - last_close
+      - bidV1
+      - bidV2
+      - bidV3
+      - bidV4
+      - bidV5
+      - askV1
+      - askV2
+      - askV3
+      - askV4
+      - askV5
+      allowed_functions:
+      - rolling_std
+      - log
+      - abs
+      proxy_quality: low
+      confidence: 0.48
+      approximation_loss: Collapses latent state probabilities to a local volatility-depth imbalance score; no fitted HMM,
+        posterior probabilities, or online state model are available.
+    future_pipeline: Train or fit an online state model and expose posterior probabilities as features.
+    approximation_loss: Rolling price/volume proxies collapse a probabilistic latent state into a crude threshold signal.
+    data_requirement: Online state model outputs or fitted posterior regime probabilities.
+    review_status: reviewed
+    missing_data:
+    - online_model_state
+    - posterior_probabilities
+    - fitted_regime_model
+    reviewer: human
+    confidence: 0.9
+    role: core
+  predicted_probability:
+    proxy_strength: weak_proxy
+    aliases:
+    - predicted_prob_vector
+    - predicted_prob_vector_t
+    - predicted_tail_prob_t
+    - top_k_probability
+    - predicted_top_k_probability
+    - population_median_prob
+    - population_median_prob_t
+    - model_forecast
+    - forecast_probability
+    local_proxy: rolling_mean(log(((askP1 + bidP1) / 2) / last_close), 20) / rolling_std(log(((askP1 + bidP1) / 2) / last_close), 60)
+    required_fields:
+    - askP1
+    - bidP1
+    - last_close
+    local_proxies:
+    - expression: rolling_mean(log(((askP1 + bidP1) / 2) / last_close), 20) / rolling_std(log(((askP1 + bidP1) / 2) / last_close), 60)
+      required_fields:
+      - askP1
+      - bidP1
+      - last_close
+      allowed_functions:
+      - rolling_mean
+      - rolling_std
+      - log
+      proxy_quality: low
+      confidence: 0.45
+      approximation_loss: Uses normalized local return pressure as a weak forecast-score proxy; no trained model probability
+        output is observed.
+    future_pipeline: Train a cross-sectional prediction model and store per-asset probability outputs.
+    approximation_loss: Local tick fields alone do not contain the model output probabilities used by the paper.
+    data_requirement: Trained model probability outputs aligned to instrument and timestamp.
+    review_status: reviewed
+    missing_data:
+    - trained_model_outputs
+    - probability_forecasts
+    reviewer: human
+    confidence: 0.9
+    role: core
+  cluster_id:
+    proxy_strength: weak_proxy
+    aliases:
+    - cluster
+    - cluster_id
+    - order_cluster
+    - cluster_label
+    - order_behavior_archetype
+    - clustered_order_flow
+    local_proxy: abs(((bidV1 + bidV2 + bidV3 + bidV4 + bidV5) - (askV1 + askV2 + askV3 + askV4 + askV5)) / ((bidV1 + bidV2 + bidV3 + bidV4 + bidV5) + (askV1 + askV2 + askV3 + askV4 + askV5))) * rolling_sum(abs(volume), 20)
+    required_fields:
+    - bidV1
+    - bidV2
+    - bidV3
+    - bidV4
+    - bidV5
+    - askV1
+    - askV2
+    - askV3
+    - askV4
+    - askV5
+    - volume
+    local_proxies:
+    - expression: abs(((bidV1 + bidV2 + bidV3 + bidV4 + bidV5) - (askV1 + askV2 + askV3 + askV4 + askV5)) / ((bidV1 + bidV2 + bidV3 + bidV4 + bidV5) + (askV1 + askV2 + askV3 + askV4 + askV5))) * rolling_sum(abs(volume), 20)
+      required_fields:
+      - bidV1
+      - bidV2
+      - bidV3
+      - bidV4
+      - bidV5
+      - askV1
+      - askV2
+      - askV3
+      - askV4
+      - askV5
+      - volume
+      allowed_functions:
+      - abs
+      - rolling_sum
+      proxy_quality: low
+      confidence: 0.44
+      approximation_loss: Scores local order-flow archetype intensity from visible imbalance and activity; no clustering model
+        or cluster labels are computed.
+    future_pipeline: Run a clustering model on order or book-event features and persist cluster labels.
+    approximation_loss: Visible depth imbalance is only a coarse substitute for cluster-conditioned flow.
+    data_requirement: Clustering model outputs or order-flow archetype labels.
+    review_status: reviewed
+    missing_data:
+    - cluster_model_outputs
+    - order_flow_archetypes
+    reviewer: human
+    confidence: 0.88
+    role: core_or_auxiliary
+  order_event:
+    proxy_strength: future_pipeline
+    aliases:
+    - order_id
+    - order_timestamp
+    - order_action
+    - queue_position
+    local_proxy: ''
+    required_fields: []
+    future_pipeline: Ingest order-event or transaction-level data with side, action, queue, and event labels.
+    approximation_loss: Current snapshots and aggregate fields cannot reconstruct individual order events.
+    data_requirement: Order-event or transaction-level data with timestamp, side, size, action, and queue fields.
+    review_status: future_pipeline
+    missing_data:
+    - order_id
+    - order_timestamp
+    - order_side
+    - order_action
+    - queue_position
+    reviewer: human
+    confidence: 0.92
+    role: core
+  cross_venue_gap:
+    proxy_strength: future_pipeline
+    aliases:
+    - cross_venue_price_gap
+    - polymarket_price
+    - binance_price
+    - external_venue_price
+    - reference_price
+    - price_reference_t
+    - benchmark_residual
+    - index_residual
+    local_proxy: ''
+    required_fields: []
+    future_pipeline: Add synchronized external venue/index/reference feeds.
+    approximation_loss: A single local market cannot reproduce cross-venue or benchmark gaps.
+    data_requirement: Synchronized external venue, index, or reference-price feed.
+    review_status: future_pipeline
+    missing_data:
+    - external_venue_price
+    - reference_price
+    - synchronized_cross_venue_feed
+    reviewer: human
+    confidence: 0.9
+    role: core_or_auxiliary
+  text_event_signal:
+    proxy_strength: future_pipeline
+    aliases:
+    - sentiment
+    - sentiment_score
+    - text_sentiment
+    - esg_event
+    - esg
+    - news_event
+    - attention_weight
+    - news_attention
+    - semantic_contagion
+    local_proxy: ''
+    required_fields: []
+    future_pipeline: Build a text/event NLP pipeline and align event features to tick time.
+    approximation_loss: Price reaction proxies are delayed relative to exogenous information arrival.
+    data_requirement: Text/news/event feed, NLP signal, and timestamp alignment.
+    review_status: future_pipeline
+    missing_data:
+    - news_feed
+    - event_timestamp
+    - nlp_signal
+    reviewer: human
+    confidence: 0.9
+    role: core_or_auxiliary
+  wealth_or_preference:
+    proxy_strength: unsupported
+    aliases:
+    - wealth
+    - w_t
+    - risk_aversion
+    - gamma
+    - utility
+    - crra
+    - expected_terminal_wealth
+    local_proxy: ''
+    required_fields: []
+    approximation_loss: Private utility, wealth, or preference parameters are not observable in local market data.
+    data_requirement: Investor-level wealth, utility, or preference parameters; unavailable in local market data.
+    review_status: rejected
+    missing_data:
+    - investor_wealth
+    - utility_parameters
+    - preference_parameters
+    reviewer: human
+    confidence: 0.95
+    role: theoretical_only

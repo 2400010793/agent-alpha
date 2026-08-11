@@ -1,0 +1,16 @@
+"""Proxy mapping for LLM candidates and paper HF factors."""
+
+from src.factor._legacy import legacy
+
+_collect_explicit_proxy_variables = legacy._collect_explicit_proxy_variables
+_resolve_candidate_proxy_mappings = legacy._resolve_candidate_proxy_mappings
+_candidate_proxy_summary = legacy._candidate_proxy_summary
+_normalize_loss_self_audit = legacy._normalize_loss_self_audit
+_candidate_loss_reject_reason = legacy._candidate_loss_reject_reason
+_collect_explicit_paper_factor_variables = legacy._collect_explicit_paper_factor_variables
+_collect_paper_factor_proxy_variables = legacy._collect_paper_factor_proxy_variables
+_resolve_paper_factor_proxy_mappings = legacy._resolve_paper_factor_proxy_mappings
+_paper_factor_proxy_status = legacy._paper_factor_proxy_status
+attach_paper_factor_proxy_analysis = legacy.attach_paper_factor_proxy_analysis
+
+__all__ = ["attach_paper_factor_proxy_analysis", "_resolve_paper_factor_proxy_mappings"]

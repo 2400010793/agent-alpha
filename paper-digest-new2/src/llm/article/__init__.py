@@ -1,0 +1,1 @@
+"""Single-stage article analysis flow."""

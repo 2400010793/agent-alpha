@@ -1,0 +1,70 @@
+{
+  "schema_version": "scientometrics_references_v1",
+  "audited_at": "2026-08-11",
+  "references": [
+    {
+      "name": "SciNet",
+      "source": "https://github.com/tsinghua-fib-lab/SciNet",
+      "local_path": "SciNet",
+      "pin_type": "git_commit",
+      "pin": "ed5c76fb250a4face6224ea834a62e63b47ddabd",
+      "license_status": "unverified_readme_claims_mit_but_no_license_file",
+      "allowed_use": [
+        "query_fixture",
+        "format_compatibility",
+        "evaluator_behavior_audit"
+      ],
+      "production_import": false
+    },
+    {
+      "name": "pySciSci",
+      "source": "https://pypi.org/project/pyscisci/0.92/",
+      "upstream_repository": "https://github.com/SciSciCollective/pyscisci",
+      "local_path": "third_party/pyscisci",
+      "pin_type": "sdist_sha256",
+      "pin": "0228d2936cba4d4143cfc87902c245a670f0326ada2f2ff006df74c6a5a1bbf0",
+      "package_version": "0.92",
+      "license_status": "MIT_license_file_present",
+      "allowed_use": [
+        "small_fixture_oracle",
+        "formula_reference",
+        "attributed_adaptation"
+      ],
+      "production_import": false
+    },
+    {
+      "name": "Novelpy",
+      "source": "https://pypi.org/project/novelpy/1.4/",
+      "documentation": "https://novelpy.readthedocs.io/en/latest/",
+      "pin_type": "sdist_sha256",
+      "pin": "a4e66d0d0e59104d3e4937e0594c0f509bbfcc000a71d0df866c995a0ea06c28",
+      "package_version": "1.4",
+      "license_status": "MIT_license_file_present_upstream_repository_unspecified",
+      "allowed_use": [
+        "optional_small_fixture_oracle"
+      ],
+      "production_import": false,
+      "vendored": false
+    },
+    {
+      "name": "cdindex",
+      "source": "https://github.com/russellfunk/cdindex",
+      "license_status": "GPL_3_0",
+      "allowed_use": [
+        "external_behavior_comparison_after_license_review"
+      ],
+      "production_import": false,
+      "vendored": false
+    },
+    {
+      "name": "fast-cdindex",
+      "source": "https://github.com/dspinellis/fast-cdindex",
+      "license_status": "GPL_3_0",
+      "allowed_use": [
+        "performance_design_reference_after_license_review"
+      ],
+      "production_import": false,
+      "vendored": false
+    }
+  ]
+}

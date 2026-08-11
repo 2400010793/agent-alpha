@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GraphFeedbackUpdateV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "feedback_update_id", "source_feedback_id",
+    "research_opportunity_id", "action_codes", "evidence_gap_records",
+    "relation_review_records", "research_archive_records",
+    "priority_adjustment", "prohibited_inferences"
+  ],
+  "properties": {
+    "schema_version": {"const": "graph_feedback_update_v1"},
+    "feedback_update_id": {"type": "string", "pattern": "^graphfeedback:"},
+    "source_feedback_id": {"type": "string", "pattern": "^oppfeedback:"},
+    "research_opportunity_id": {"type": "string", "pattern": "^opportunity:"},
+    "action_codes": {"type": "array", "minItems": 1, "uniqueItems": true},
+    "evidence_gap_records": {"type": "array"},
+    "relation_review_records": {"type": "array"},
+    "research_archive_records": {"type": "array"},
+    "priority_adjustment": {"type": "number", "minimum": -0.2, "maximum": 0.2},
+    "prohibited_inferences": {"type": "array", "minItems": 1, "uniqueItems": true}
+  }
+}

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from agent_alpha.factors.factor_deduper import annotate_factor_identity
 from agent_alpha.memory.jsonl_store import JsonlStore
 
 
@@ -21,7 +22,7 @@ def factor_registry_store(path: str | Path = DEFAULT_FACTOR_REGISTRY_PATH) -> Js
 
 
 def append_factor_record(record: dict[str, Any], path: str | Path = DEFAULT_FACTOR_REGISTRY_PATH) -> dict[str, Any]:
-    payload = dict(record)
+    payload = annotate_factor_identity(record)
     if payload.get("factor_id") and not payload.get("name"):
         payload["name"] = payload["factor_id"]
     return factor_registry_store(path).append(payload)

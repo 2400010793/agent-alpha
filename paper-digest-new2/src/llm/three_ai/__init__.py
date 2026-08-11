@@ -1,0 +1,1 @@
+"""Three-AI reading, article-opinion analysis, and faithfulness-audit flow."""

@@ -1,0 +1,67 @@
+version: 1
+description: >-
+  Editable factor quality thresholds. Change this file to tune small/medium/large
+  selection without touching the metric calculation code.
+
+defaults:
+  min_obs: 1
+  finite_ratio: 0.90
+  zero_ratio: 0.70
+  ic: 0.01
+  rank_ic: 0.01
+  qspread: 0.50
+  ic_ir: 0.25
+  rankic_ir: 0.25
+  qspread_ir: 0.25
+  direction_consistency: 0.65
+  abs_ic_gt_002_ratio: 0.15
+  signal_rule_min: 8
+  vote_margin: 2
+
+small:
+  min_obs: 1
+  finite_ratio: 0.90
+  zero_ratio: 0.70
+  ic: 0.010
+  rank_ic: 0.010
+  qspread: 0.50
+  ic_ir: 0.25
+  rankic_ir: 0.25
+  qspread_ir: 0.25
+  direction_consistency: 0.65
+  abs_ic_gt_002_ratio: 0.15
+  signal_rule_min: 8
+  good_abs_ic: 0.015
+  strong_abs_ic: 0.030
+
+medium:
+  min_obs: 1000000
+  finite_ratio: 0.90
+  zero_ratio: 0.70
+  ic: 0.0025
+  rank_ic: 0.0025
+  qspread: 0.10
+  direction_consistency: 0.60
+  abs_ic_gt_001_ratio: 0.10
+  abs_ic_gt_002_ratio: 0.03
+  relaxed_rule_min: 7
+  good_abs_ic: 0.015
+  force_small_good: true
+  top_k_extra: 0
+  max_per_hf_factor: 2
+
+large:
+  min_obs: 3000000
+  finite_ratio: 0.92
+  zero_ratio: 0.60
+  ic: 0.005
+  rank_ic: 0.003
+  qspread: 0.12
+  direction_consistency: 0.58
+  abs_ic_gt_001_ratio: 0.12
+  abs_ic_gt_002_ratio: 0.04
+  relaxed_rule_min: 7
+  good_abs_ic: 0.020
+  strong_abs_ic: 0.030
+  force_small_good: true
+  top_k_extra: 0

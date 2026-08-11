@@ -1,0 +1,1 @@
+export function OverlapLegend({ intersectionCount, bridgeCount }: { intersectionCount: number; bridgeCount: number }) { return <div className="overlap-legend"><span>Intersection: {intersectionCount}</span><span>Bridge papers: {bridgeCount}</span></div> }

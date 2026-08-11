@@ -1,0 +1,2 @@
+import type { ResearchMap } from '../types/map'
+export function MapSelector({ maps, onLoad, onDelete, onCopy }: { maps: ResearchMap[]; onLoad: (map: ResearchMap) => void; onDelete: (id: string) => void; onCopy: (id: string) => void }) { return <div className="map-selector">{maps.map((map) => <div key={map.id}><button onClick={() => onLoad(map)}>{map.title}</button><button onClick={() => onCopy(map.id)}>Copy</button><button onClick={() => onDelete(map.id)}>Delete</button></div>)}</div> }

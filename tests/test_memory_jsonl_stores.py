@@ -6,7 +6,6 @@ import pytest
 
 from agent_alpha.factors.factor_store import append_factor_record, load_factor_records, search_factor_records
 from agent_alpha.library.alpha_library import append_alpha_record, load_alpha_records, search_elite
-from agent_alpha.memory.balanced_memory import select_balanced_memory
 from agent_alpha.memory.evaluation_store import append_evaluation_record, load_evaluation_records, search_evaluation_records
 from agent_alpha.memory.feedback_memory import append_feedback_record, load_feedback_records, search_feedback_records
 from agent_alpha.memory.function_memory import append_function_memory, load_function_memory, search_function_memory
@@ -108,25 +107,6 @@ def test_transfer_memory_append_load_search(tmp_path: Path) -> None:
 
     assert load_transfer_memory(path)[0]["schema_version"] == "transfer_memory_v1"
     assert search_transfer_memory("spread", path)[0]["agent_name"] == "StateConditionMutationAgent"
-
-
-def test_balanced_memory_selection_uses_positive_warning_recent_and_explore() -> None:
-    records = [
-        {"memory_id": "good_1", "label": "GOOD", "summary": "spread state helped", "delta_score": 0.03, "updated_at": "2026-01-01T00:00:00+00:00"},
-        {"memory_id": "good_2", "label": "GOOD", "summary": "spread liquidity worked", "delta_score": 0.02, "updated_at": "2026-01-02T00:00:00+00:00"},
-        {"memory_id": "bad_1", "label": "BAD", "summary": "spread state failed when stale", "delta_score": -0.01, "updated_at": "2026-01-03T00:00:00+00:00"},
-        {"memory_id": "recent_1", "label": "NEUTRAL", "summary": "recent rhythm idea", "updated_at": "2026-01-10T00:00:00+00:00"},
-        {"memory_id": "explore_1", "label": "NEUTRAL", "summary": "rare book shape", "usage_count": 0, "updated_at": "2026-01-04T00:00:00+00:00"},
-        {"memory_id": "overused", "label": "GOOD", "summary": "spread overused", "usage_count": 99, "updated_at": "2026-01-05T00:00:00+00:00"},
-    ]
-
-    selected = select_balanced_memory(records, query="spread", kind="transfer", limit=5, seed_text="stable")
-    selected_ids = {record["memory_id"] for record in selected}
-
-    assert "good_1" in selected_ids
-    assert "bad_1" in selected_ids
-    assert "recent_1" in selected_ids
-    assert len(selected) == 5
 
 
 def test_alpha_library_append_load_search(tmp_path: Path) -> None:

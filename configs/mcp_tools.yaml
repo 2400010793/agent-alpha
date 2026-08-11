@@ -6,6 +6,10 @@ tools:
     server: market_data_server
     allowed_roles: [The Implementer, The Evaluator]
     description: Return raw, derived, and label field metadata from field_registry.yaml.
+  - name: market_data.recommend_fields
+    server: market_data_server
+    allowed_roles: [The Implementer, The Evaluator]
+    description: Recommend runtime-safe fields for a signal using tags, signal text, and candidate fields.
   - name: market_data.validate_factor_fields
     server: market_data_server
     allowed_roles: [The Implementer, The Evaluator]
@@ -34,6 +38,10 @@ tools:
     server: factor_registry_server
     allowed_roles: [The Implementer, The Evaluator]
     description: Search stored factor candidate metadata.
+  - name: factor_registry.search_similar_factors
+    server: factor_registry_server
+    allowed_roles: [The Implementer, The Evaluator]
+    description: Search similar historical Alpha and factor candidates for a signal.
   - name: evaluation_memory.get_good_bad_memory
     server: evaluation_memory_server
     allowed_roles: [The Idea Person, The Implementer, The Evaluator]

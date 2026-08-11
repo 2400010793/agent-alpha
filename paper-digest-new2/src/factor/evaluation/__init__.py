@@ -1,0 +1,1 @@
+"""Factor evaluation, quality rules, and candidate selection."""

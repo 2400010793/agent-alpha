@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from agent_alpha.factors.llm_factor_generator import generate_factor_candidates_
 from agent_alpha.llm.client import LLMClient, settings_from_env
 from agent_alpha.search.signal_mutation import generate_signal_mutations
 from agent_alpha.search.experiment_runner import run_search_experiment
+from agent_alpha.workflows.run_manifest import standard_run_paths, write_json, write_jsonl, write_run_manifest
 
 
 def _load_signals(path: str | Path) -> list[dict[str, Any]]:
@@ -57,6 +59,75 @@ def _mutate_signals(
     return [*signals, *mutated_signals], mutation_records
 
 
+def _signal_mutation_key(signal: dict[str, Any], max_mutations: int, exploration_direction: str) -> str:
+    payload = {"signal": signal, "max_mutations": max_mutations, "exploration_direction": exploration_direction}
+    encoded = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _mutate_signals_resumable(
+    signals: list[dict[str, Any]],
+    client: LLMClient,
+    *,
+    max_signal_mutations_per_signal: int,
+    exploration_direction: str,
+    partial_path: Path,
+    progress_path: Path,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if max_signal_mutations_per_signal <= 0:
+        return list(signals), []
+    mutation_records: list[dict[str, Any]] = []
+    completed_keys: set[str] = set()
+    if partial_path.exists():
+        for line in partial_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict) or not isinstance(payload.get("mutation_records"), list):
+                continue
+            records = [dict(item) for item in payload["mutation_records"] if isinstance(item, dict)]
+            mutation_records.extend(records)
+            if payload.get("signal_mutation_key"):
+                completed_keys.add(str(payload["signal_mutation_key"]))
+    if progress_path.exists():
+        try:
+            progress = json.loads(progress_path.read_text(encoding="utf-8"))
+            completed_keys.update(str(item) for item in progress.get("completed_signal_keys", []) if item)
+        except (AttributeError, json.JSONDecodeError):
+            pass
+
+    partial_path.parent.mkdir(parents=True, exist_ok=True)
+    for signal in signals:
+        key = _signal_mutation_key(signal, max_signal_mutations_per_signal, exploration_direction)
+        if key in completed_keys:
+            continue
+        records = generate_signal_mutations(
+            signal,
+            client,
+            exploration_direction=exploration_direction,
+            max_mutations=max_signal_mutations_per_signal,
+        )
+        with partial_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"signal_mutation_key": key, "mutation_records": records}, ensure_ascii=False, sort_keys=True) + "\n")
+        mutation_records.extend(records)
+        completed_keys.add(key)
+        write_json(
+            progress_path,
+            {
+                "schema_version": "signal_mutation_progress_v1",
+                "completed_signal_count": len(completed_keys),
+                "completed_signal_keys": sorted(completed_keys),
+                "requested_signal_count": len(signals),
+                "partial_mutations": str(partial_path),
+            },
+        )
+    mutated_signals = [record["signal"] for record in mutation_records if isinstance(record.get("signal"), dict)]
+    return [*signals, *mutated_signals], mutation_records
+
+
 def _initial_factor_candidates(
     signals: list[dict[str, Any]],
     client: LLMClient,
@@ -71,6 +142,100 @@ def _initial_factor_candidates(
             candidate["validation_message"] = validation.message
             if validation.ok:
                 candidates.append(candidate)
+    return candidates
+
+
+def _signal_generation_key(signal: dict[str, Any], max_candidates_per_signal: int) -> str:
+    payload = {"signal": signal, "max_candidates_per_signal": max_candidates_per_signal}
+    encoded = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _load_partial_candidates(path: Path) -> tuple[list[dict[str, Any]], set[str]]:
+    candidates: list[dict[str, Any]] = []
+    completed_keys: set[str] = set()
+    if not path.exists():
+        return candidates, completed_keys
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        if isinstance(record.get("candidates"), list):
+            candidates.extend(dict(item) for item in record["candidates"] if isinstance(item, dict))
+        elif isinstance(record.get("candidate"), dict):
+            # Backward-compatible reader for the first partial format.
+            candidates.append(dict(record["candidate"]))
+        else:
+            continue
+        if record.get("signal_generation_key"):
+            completed_keys.add(str(record["signal_generation_key"]))
+    return candidates, completed_keys
+
+
+def _initial_factor_candidates_resumable(
+    signals: list[dict[str, Any]],
+    client: LLMClient,
+    *,
+    max_candidates_per_signal: int,
+    partial_path: Path,
+    progress_path: Path,
+) -> list[dict[str, Any]]:
+    candidates, completed_keys = _load_partial_candidates(partial_path)
+    progress: dict[str, Any] = {}
+    if progress_path.exists():
+        try:
+            loaded = json.loads(progress_path.read_text(encoding="utf-8"))
+            progress = loaded if isinstance(loaded, dict) else {}
+        except json.JSONDecodeError:
+            progress = {}
+    completed_keys.update(str(item) for item in progress.get("completed_signal_keys", []) if item)
+    partial_path.parent.mkdir(parents=True, exist_ok=True)
+    for signal in signals:
+        generation_key = _signal_generation_key(signal, max_candidates_per_signal)
+        if generation_key in completed_keys:
+            continue
+        generated = _initial_factor_candidates([signal], client, max_candidates_per_signal=max_candidates_per_signal)
+        with partial_path.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "signal_generation_key": generation_key,
+                        "source_signal_id": signal.get("signal_id", ""),
+                        "candidates": generated,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+        candidates.extend(generated)
+        completed_keys.add(generation_key)
+        write_json(
+            progress_path,
+            {
+                "schema_version": "factor_generation_progress_v1",
+                "completed_signal_count": len(completed_keys),
+                "completed_signal_keys": sorted(completed_keys),
+                "requested_signal_count": len(signals),
+                "partial_candidates": str(partial_path),
+            },
+        )
+    if not progress_path.exists():
+        write_json(
+            progress_path,
+            {
+                "schema_version": "factor_generation_progress_v1",
+                "completed_signal_count": len(completed_keys),
+                "completed_signal_keys": sorted(completed_keys),
+                "requested_signal_count": len(signals),
+                "partial_candidates": str(partial_path),
+            },
+        )
     return candidates
 
 
@@ -115,15 +280,24 @@ def run_batch_factor_iteration(
     run_fac_eval: bool = False,
     exploration_direction: str = "",
     seed_factor_candidates: list[dict[str, Any]] | None = None,
+    summarize_generation_memory: bool = False,
+    memory_consolidation_records: int = 8,
+    memory_consolidation_soft_chars: int = 24_000,
+    memory_consolidation_hard_chars: int = 28_000,
+    research_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     signals = _load_signals(signals_path)
-    factor_input_signals, signal_mutation_records = _mutate_signals(
+    signal_mutations_partial_path = root / "initial" / "signal_mutations.partial.jsonl"
+    signal_mutation_progress_path = root / "initial" / "signal_mutation_progress.json"
+    factor_input_signals, signal_mutation_records = _mutate_signals_resumable(
         signals,
         client,
         max_signal_mutations_per_signal=max_signal_mutations_per_signal,
         exploration_direction=exploration_direction,
+        partial_path=signal_mutations_partial_path,
+        progress_path=signal_mutation_progress_path,
     )
     signal_mutations_path = root / "initial" / "signal_mutations.json"
     signal_mutations_path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,7 +305,16 @@ def run_batch_factor_iteration(
     seed_candidates = _prepare_seed_candidates(seed_factor_candidates)
     seed_candidates_path = root / "initial" / "seed_factor_candidates.json"
     seed_candidates_path.write_text(json.dumps({"factor_candidates": seed_candidates}, ensure_ascii=False, indent=2), encoding="utf-8")
-    initial_candidates = [*seed_candidates, *_initial_factor_candidates(factor_input_signals, client, max_candidates_per_signal=max_candidates_per_signal)]
+    partial_candidates_path = root / "initial" / "factor_candidates.partial.jsonl"
+    generation_progress_path = root / "initial" / "factor_generation_progress.json"
+    generated_candidates = _initial_factor_candidates_resumable(
+        factor_input_signals,
+        client,
+        max_candidates_per_signal=max_candidates_per_signal,
+        partial_path=partial_candidates_path,
+        progress_path=generation_progress_path,
+    )
+    initial_candidates = [*seed_candidates, *generated_candidates]
     initial_candidates, rendered_files, fac_eval_config = _render_initial_candidates(initial_candidates, root, fac_eval_config_path=fac_eval_config_path)
     candidates_path = root / "initial" / "factor_candidates.json"
     candidates_path.parent.mkdir(parents=True, exist_ok=True)
@@ -147,6 +330,12 @@ def run_batch_factor_iteration(
         max_new_candidates=max_new_candidates,
         client=client,
         exploration_direction=exploration_direction,
+        source_signals=factor_input_signals,
+        research_context=research_context,
+        summarize_generation_memory=summarize_generation_memory,
+        memory_consolidation_records=memory_consolidation_records,
+        memory_consolidation_soft_chars=memory_consolidation_soft_chars,
+        memory_consolidation_hard_chars=memory_consolidation_hard_chars,
     )
     summary = {
         "status": "ok",
@@ -154,15 +343,30 @@ def run_batch_factor_iteration(
         "signal_mutation_count": len(signal_mutation_records),
         "factor_input_signal_count": len(factor_input_signals),
         "signal_mutations": str(signal_mutations_path),
+        "signal_mutations_partial": str(signal_mutations_partial_path),
+        "signal_mutation_progress": str(signal_mutation_progress_path),
         "initial_candidate_count": len(initial_candidates),
         "seed_candidate_count": len(seed_candidates),
         "seed_candidates": str(seed_candidates_path),
         "initial_candidates": str(candidates_path),
+        "initial_candidates_partial": str(partial_candidates_path),
+        "factor_generation_progress": str(generation_progress_path),
         "initial_rendered_factor_files": rendered_files,
         "initial_fac_eval_config": fac_eval_config,
         "iteration": iteration_summary,
     }
-    (root / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    paths = standard_run_paths(root)
+    write_jsonl(paths["signals"], factor_input_signals)
+    manifest = write_run_manifest(
+        root,
+        run_type="batch_factor_iteration",
+        inputs={"signals_path": str(signals_path), "generations": generations, "research_context": research_context or {}},
+        outputs=summary,
+        summary={"signal_count": len(signals), "initial_candidate_count": len(initial_candidates)},
+    )
+    summary["manifest"] = str(paths["manifest"])
+    summary["manifest_run_id"] = manifest["run_id"]
+    write_json(root / "summary.json", summary)
     return summary
 
 

@@ -1,0 +1,1 @@
+"""Structured package for the paper digest pipeline."""

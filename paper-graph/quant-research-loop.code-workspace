@@ -1,0 +1,39 @@
+{
+  "folders": [
+    {
+      "name": "paper-graph",
+      "path": "."
+    },
+    {
+      "name": "my-paper-digest-new2",
+      "path": "../my-paper-digest-new2"
+    },
+    {
+      "name": "agent-alpha",
+      "path": "../agent_alpha"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.git": true,
+      "**/.pytest_cache": true,
+      "**/__pycache__": true
+    },
+    "search.exclude": {
+      "**/.git": true,
+      "**/.venv": true,
+      "**/__pycache__": true,
+      "**/.pytest_cache": true,
+      "**/data/raw/**": true,
+      "**/data/raw_papers/**": true,
+      "**/logs/**": true,
+      "**/outputs/**": true
+    },
+    "python.analysis.exclude": [
+      "**/.venv/**",
+      "**/data/**",
+      "**/logs/**",
+      "**/outputs/**"
+    ]
+  }
+}

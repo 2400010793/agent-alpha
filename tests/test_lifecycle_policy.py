@@ -42,13 +42,13 @@ def _candidate(factor_id: str) -> dict:
     }
 
 
-def test_elite_accept_freezes_and_builds_good_feedback() -> None:
+def test_elite_accept_does_not_freeze_and_builds_good_feedback() -> None:
     review = _review("elite", 0.081)
     candidate = _candidate("elite")
 
-    assert should_freeze_for_library(review)
-    assert mutation_parent_status(review) == "elite_frozen"
-    assert not eligible_for_mutation(review)
+    assert not should_freeze_for_library(review)
+    assert mutation_parent_status(review) == "elite_continue"
+    assert eligible_for_mutation(review)
     feedback = build_good_feedback(review, candidate)
     assert feedback["label"] == "GOOD"
     assert feedback["freeze"] is True
@@ -76,12 +76,12 @@ def test_child_challenges_parent_but_never_enters_library_directly() -> None:
     assert not parent_should_enter_library(parent, [better_child])
 
 
-def test_parent_freezes_when_children_do_not_exceed_it() -> None:
+def test_parent_does_not_freeze_when_children_do_not_exceed_it() -> None:
     parent = _review("parent", 0.09, decision="accept")
     children = [_review("child_1", 0.04, decision="revise"), _review("child_2", 0.081, decision="accept")]
 
-    assert parent_should_freeze_after_children(parent, children)
-    assert parent_should_enter_library(parent, children)
+    assert not parent_should_freeze_after_children(parent, children)
+    assert not parent_should_enter_library(parent, children)
     assert not parent_should_freeze_after_children(parent, [_review("child_3", 0.096, decision="accept")])
 
 
@@ -134,4 +134,4 @@ def test_select_mutation_parents_prioritizes_near_miss_and_penalizes_attempts() 
 
     selected = select_mutation_parents(candidates, reviews, max_parents=3)
 
-    assert [item["factor_id"] for item in selected] == ["near", "weak", "repeated"]
+    assert [item["factor_id"] for item in selected] == ["elite", "near", "weak"]

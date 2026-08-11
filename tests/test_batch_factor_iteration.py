@@ -138,3 +138,94 @@ def test_batch_factor_iteration_generates_initial_factors_and_llm_mutation(tmp_p
     generation_1 = tmp_path / "run" / "iteration" / "generation_1" / "summary.json"
     assert generation_1.exists()
     assert json.loads(generation_1.read_text(encoding="utf-8"))["input_count"] == 1
+    assert (tmp_path / "run" / "iteration" / "frontier.jsonl").exists()
+    assert (tmp_path / "run" / "iteration" / "lineage_states.json").exists()
+    assert (tmp_path / "run" / "iteration" / "selection_trace.jsonl").exists()
+
+
+def test_batch_factor_iteration_resumes_initial_factor_partial(tmp_path: Path) -> None:
+    signals_path = tmp_path / "signals.json"
+    signals_path.write_text(
+        json.dumps(
+            {
+                "signals": [
+                    {
+                        "signal_id": "sig_lob",
+                        "source_paper_id": "paper_lob",
+                        "source_reading_note_id": "note_lob",
+                        "signal_name": "LOB pressure",
+                        "market_intuition": "Visible bid depth exceeding ask depth may proxy pressure.",
+                        "hypothesis": "LOB pressure predicts continuation.",
+                        "expected_direction": "positive",
+                        "hf_mechanism_tags": ["order_book_pressure"],
+                        "candidate_fields": ["bidV1", "askV1"],
+                        "evidence_ids": ["ev1"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    client = FakeBatchClient()
+
+    first = run_batch_factor_iteration(
+        signals_path,
+        output_dir=tmp_path / "run_resume",
+        client=client,
+        generations=1,
+        max_candidates_per_signal=1,
+    )
+    calls_after_first = client.calls
+    second = run_batch_factor_iteration(
+        signals_path,
+        output_dir=tmp_path / "run_resume",
+        client=client,
+        generations=1,
+        max_candidates_per_signal=1,
+    )
+
+    assert Path(first["initial_candidates_partial"]).exists()
+    assert json.loads((tmp_path / "run_resume" / "initial" / "factor_generation_progress.json").read_text(encoding="utf-8"))["completed_signal_count"] == 1
+    assert second["initial_candidate_count"] == 1
+    assert client.calls == calls_after_first
+
+
+def test_batch_factor_iteration_resumes_signal_mutation_partial(tmp_path: Path) -> None:
+    signals_path = tmp_path / "signals.json"
+    signals_path.write_text(
+        json.dumps(
+            {
+                "signals": [
+                    {
+                        "signal_id": "sig_lob",
+                        "source_paper_id": "paper_lob",
+                        "source_reading_note_id": "note_lob",
+                        "signal_name": "LOB pressure",
+                        "market_intuition": "Visible bid depth exceeding ask depth may proxy pressure.",
+                        "hypothesis": "LOB pressure predicts continuation.",
+                        "expected_direction": "positive",
+                        "hf_mechanism_tags": ["order_book_pressure"],
+                        "candidate_fields": ["bidV1", "askV1"],
+                        "evidence_ids": ["ev1"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    client = FakeBatchClient()
+    kwargs = {
+        "output_dir": tmp_path / "run_signal_resume",
+        "client": client,
+        "generations": 1,
+        "max_candidates_per_signal": 1,
+        "max_signal_mutations_per_signal": 1,
+    }
+
+    first = run_batch_factor_iteration(signals_path, **kwargs)
+    calls_after_first = client.calls
+    second = run_batch_factor_iteration(signals_path, **kwargs)
+
+    assert first["signal_mutation_count"] == second["signal_mutation_count"] == 1
+    assert Path(first["signal_mutations_partial"]).exists()
+    assert client.calls == calls_after_first

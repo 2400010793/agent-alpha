@@ -1,0 +1,1 @@
+export function TimelineAxis({ minYear, maxYear }: { minYear: number; maxYear: number }) { return <div className="timeline-axis"><span>{minYear}</span><span>{Math.round((minYear + maxYear) / 2)}</span><span>{maxYear}</span></div> }

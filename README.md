@@ -1,5 +1,12 @@
 # Agent Alpha
 
+> Monorepo note: this repository is the shared source-control home for Agent
+> Alpha, Paper Graph, and Paper Digest New2.  Agent Alpha remains at the
+> repository root for backward compatibility; the other projects live in
+> `paper-graph/` and `paper-digest-new2/`.  Large datasets, logs, generated
+> reports, caches, virtual environments, and model artifacts remain local and
+> are intentionally excluded from Git.
+
 Agent Alpha 是一个面向量化交易论文阅读、Alpha 信号生成、Alpha 因子挖掘与评估的多智能体项目，实现高频因子的挖掘。当前阶段设计三部分：
 
 1. Alpha 信号生成
@@ -794,91 +801,18 @@ LLM 不能直接把报告文本中的非高频字段白名单字段写进因子�
 
 ### 9.2 记忆类型
 
-Agent Alpha 当前采用 CogAlpha-style 记忆：不依赖模型长期记忆，也不让 LLM 读取全量历史，而是把实验结果压缩成短的、可检索的外部记忆，再按 agent 需要注入。
+Agent Alpha 的记忆分为两大类。
 
 | 记忆类型 | 内容 | 是否可进入因子公式 | 用途 |
 |---|---|---|---|
-| 文档证据记忆 | 论文、研报、研究文本、evidence chunks | 否 | 给 Reading / Signal 阶段提供证据路径 |
-| 原始实验记录 | factor registry、evaluation records、feedback records、lineage records | 只有字段白名单内字段可复用 | 审计、回放、统计、批量摘要 |
-| `specialist_memory` | 每个专业 mutation agent 自己的 proposal / outcome 短记忆 | 否 | 防止同一专业 agent 重复提案，复用该 agent 的有效经验 |
-| `function_memory` | ASL op、字段、窗口、函数模式在什么条件下好/坏 | 只能作为约束和提示 | 告诉 agent 哪些函数/字段组合要避免或如何修复 |
-| `transfer_memory` | parent -> child 的 mutation 转移经验、delta score、适用条件 | 否 | 告诉 selector / agent 哪类变异在什么机制下有效 |
-| `memory_context` | lineage + specialist/function/transfer memory 的有界上下文 | 否 | 每次 mutation 调用时喂给专业 agent |
+| 外部研究记忆 | 论文、研报、研究文本、evidence chunks、A/B/C 结构化记忆 | 否 | 提供机制、假设、约束和证据路径 |
+| 实验反馈记忆 | 因子、代码、字段、父代、评估指标、GOOD/BAD、失败模式、周期总结 | 只有其中属于高频字段白名单的表达式字段可进入公式 | 提供下一轮生成、筛选、修复和避免规则 |
 
 核心原则：
 
 ```text
-原始实验结果 -> MemorySummaryAgent -> compact memory -> balanced retrieval -> specialist mutation agent
+外部报告知识 + 因子实验反馈 -> 下一轮假设与代码生成
 ```
-
-普通 Reading / Signal / Initial Factor LLM 默认不读 GOOD/BAD 和 mutation memory，避免实验反馈污染假设生成。mutation memory 只服务 Factor Mutation / MutationController / Evaluator / 周期总结。
-
-### 9.2.1 Cog-style mutation memory
-
-当前 mutation agent 只接收一个统一记忆块：
-
-```text
-memory_context.lineage_context
-memory_context.specialist_memory
-memory_context.function_memory
-memory_context.transfer_memory
-memory_context.budget
-```
-
-`lineage_context` 保存祖先链：
-
-```text
-factor_id
-prefix_expression
-fields
-windows
-metrics
-score
-delta_from_previous
-```
-
-用途：避免 child 回到祖先表达式、观察哪一步 IC/RankIC 变好或变差、防止空转 mutation。
-
-`function_memory` 示例：
-
-```json
-{
-   "schema_version": "function_memory_v1",
-   "label": "BAD",
-   "function_pattern": "[\"zscore\",\"volume\",60]",
-   "asl_ops": ["zscore"],
-   "fields": ["volume"],
-   "windows": [60],
-   "condition": "without price/liquidity confirmation",
-   "summary": "Raw volume zscore often measures activity, not directional pressure.",
-   "repair_hint": "Require price confirmation or liquidity state."
-}
-```
-
-`transfer_memory` 示例：
-
-```json
-{
-   "schema_version": "transfer_memory_v1",
-   "mutation_type": "state_condition_mutation",
-   "from_pattern": "raw top-book imbalance",
-   "to_pattern": "spread-conditioned imbalance",
-   "parent_score": 0.041,
-   "child_score": 0.067,
-   "delta_score": 0.026,
-   "summary": "Spread stress made book imbalance more reliable.",
-   "when_to_apply": "Use when raw top-book pressure is noisy and spread_l1 is stable."
-}
-```
-
-`memory_context.budget` 默认：
-
-```text
-max_chars = 32000
-approx_max_tokens = 8000
-```
-
-实际目标是 2k-4k tokens，8k 只是硬上限。
 
 ### 9.3 外部文献到 A/B/C 记忆
 
@@ -1004,10 +938,6 @@ flowchart LR
    | A/B/C 记忆 | `research_memory.search_archetypes` | Signal / Factor LLM | B 层机制族、C 层原型、实现约束 | 否，只能约束生成 |
    | 历史因子 | `factor_registry.search_factors` | Factor LLM、Search | 相似因子、字段、机制标签、父代谱系 | 只能复用字段/思路，不能直接复制代码 |
    | 评估记忆 | `evaluation_memory.get_good_bad_memory` | Factor LLM、Evaluator LLM | GOOD/BAD 摘要、避免规则、修复建议 | 否 |
-   | 专业 agent 记忆 | `specialist_memory.search` | Factor Mutation LLM、Evaluator LLM | 当前 specialist agent 的历史 proposal / outcome 摘要 | 否 |
-   | 函数记忆 | `function_memory.search` | Factor Mutation LLM、Evaluator LLM | ASL op、字段、窗口、函数模式的好/坏和修复建议 | 否 |
-   | 转移记忆 | `transfer_memory.search` | MutationController、Factor Mutation LLM、Evaluator LLM | parent -> child 转移经验、delta score、适用条件 | 否 |
-   | Mutation 计划 | `mutation_controller.select_plan` | The Implementer | 规则选择 parent、mutation_focus、specialist agent | 否 |
    | Alpha 库 | `alpha_library.search_elite` | Search、Agent Selector | 精英因子元数据、表现摘要、机制标签 | 只能作为父代或参考，需重新校验 |
 
    推荐所有接口返回统一 envelope：
@@ -1851,34 +1781,13 @@ Mutation parent 排序改进：当前 `mutation_parent_priority` 主要看潜力
 
 ```text
 MutationController
-   规则枚举 (parent, mutation_focus) pair，选择一个 parent、一个 specialist agent，不调用 LLM。
+   规则选择一个 parent、一个 mutation_focus、一个 specialist agent，不调用 LLM。
 
 SpecialistMutationAgent
    每轮只调用一个 LLM，只生成一个 child challenger。
 
 MemorySummaryAgent
    默认规则维护记忆，不调用 LLM；可选 summarize_with_llm() 用于每代/每 N 个样本批量压缩短记忆。
-```
-
-当前专业 agent：
-
-```text
-EventDefinitionMutationAgent
-StateConditionMutationAgent
-ResponseShapeMutationAgent
-NormalizationRobustnessMutationAgent
-TimeStructureMutationAgent
-RefinementSimplificationAgent
-```
-
-每个专业 agent 都有完整独立 prompt，并额外接收：
-
-```text
-shared_factor_mutation_rules
-factor_candidate_format_checker
-supported_fields_and_asl
-mutation_memory_skill
-memory_context
 ```
 
 专业 mutation agent 读取的上下文统一放在 `memory_context`，避免重复字段：
@@ -1900,29 +1809,18 @@ memory_context.budget
    max_chars=32000，approx_max_tokens=8000；超过预算时先裁 function，再裁 transfer，再裁 specialist，最后裁最老祖先。
 ```
 
-当前合并 selector 规则：
+当前 parent 选择规则：
 
 ```text
 排除 lineage_states 中 stopped=True 的 lineage。
-枚举每个 (parent, mutation_focus) pair。
-selector_score = parent_quality + route_prior + arm_score。
-
-parent_quality =
-    score(abs RankIC/IC)
+对每个 candidate 计算 priority：
+   score(abs RankIC/IC)
  + near_elite bonus
  + reviewed bonus
  - mutation_attempt penalty
  - complexity penalty
  - hard failure / repeated failure penalty
-
-route_prior = failure text 与 mutation_focus 的规则匹配加分。
-
-arm_score =
-    mean_reward
- + exploration_c * sqrt(log(total_trials + 1) / (n_trials + 1))
- - 0.01 * failure_count
-
-按 (selector_score, factor_id) 降序选 top-1 pair。
+按 (priority, factor_id) 降序选 top-1。
 ```
 
 当前 mutation_focus 路由规则：
@@ -1949,40 +1847,13 @@ sub(x, 0)
 简单 sign reversal: neg(parent), mul(parent, -1)
 ```
 
-当前 balanced memory retrieval：
-
-```text
-不是纯 top-k，也不是纯随机。
-
-specialist_memory: positive/relevant + warning + recent + explore
-function_memory: warning 优先 + positive + recent + explore
-transfer_memory: positive delta 优先 + warning + recent + explore
-
-每类先搜索 top 20，再 balanced select：
-specialist_memory 4 条
-function_memory 5 条
-transfer_memory 5 条
-```
-
-MemoryAgent 触发建议：
-
-```text
-raw memory batch soft limit: 24000 chars
-raw memory batch hard limit: 28000 chars
-compact consolidation: 8 batches 或 compact chars >= 24000
-长期记忆保留 GOOD / BAD / CONDITIONAL，而不是只保 GOOD
-```
-
 仍需继续增强：
 
 ```text
 更强数学等价判断，例如 sub/add/neg 的代数归一化和近似数值相关性检查。
 将 child 评估后的 review 回填 MemorySummaryAgent，以把 NEUTRAL proposal 记忆升级为 GOOD/BAD/REVISE outcome 记忆。
 把 MemorySummaryAgent.summarize_with_llm() 接到每代结束的批处理，而不是每个 child 调用。
-实现 mutation_arm_memory 持久化写入，把 selector 的 arm_memory 从外部输入升级为自动维护。
-把 MemorySummaryAgent.summarize_with_llm() 接到每代结束的批处理，而不是每个 child 调用。
-做 compact batch consolidation，合并重复/冲突 function_memory 与 transfer_memory。
-更强数学等价判断和可选数值相关性去重。
+把专业 prompt 从短 overlay 升级成完整独立 prompt，并持续压缩 shared_factor_mutation_rules。
 ```
 
 ```text

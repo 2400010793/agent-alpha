@@ -1,0 +1,2 @@
+export function overlapIds(groups: string[][]): Set<string> { return groups.length ? groups.slice(1).reduce((common, group) => new Set(group.filter((id) => common.has(id))), new Set(groups[0])) : new Set() }
+export function bridgeIds(groups: string[][]): Set<string> { const counts = new Map<string, number>(); groups.forEach((group) => group.forEach((id) => counts.set(id, (counts.get(id) || 0) + 1))); return new Set([...counts].filter(([, count]) => count > 1).map(([id]) => id)) }

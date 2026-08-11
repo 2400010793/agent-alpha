@@ -23,6 +23,12 @@ class FactorCandidate:
     source_signal_id: str = ""
     source_reading_note_id: str = ""
     mechanism_tags: list[str] = field(default_factory=list)
+    economic_rationale: str = ""
+    research_run_id: str = ""
+    graph_id: str = ""
+    graph_version: str = ""
+    hypothesis_id: str = ""
+    evidence_ids: list[str] = field(default_factory=list)
     created_at: str = field(default_factory=utc_now_iso)
 
     @classmethod
@@ -47,6 +53,12 @@ class FactorCandidate:
             source_signal_id=str(payload.get("source_signal_id") or ""),
             source_reading_note_id=str(payload.get("source_reading_note_id") or payload.get("source_paper_id") or ""),
             mechanism_tags=[str(x) for x in payload.get("mechanism_tags", payload.get("hf_mechanism_tags", []))],
+            economic_rationale=str(payload.get("economic_rationale") or payload.get("market_intuition") or ""),
+            research_run_id=str(payload.get("research_run_id") or ""),
+            graph_id=str(payload.get("graph_id") or ""),
+            graph_version=str(payload.get("graph_version") or ""),
+            hypothesis_id=str(payload.get("hypothesis_id") or ""),
+            evidence_ids=[str(x) for x in payload.get("evidence_ids", [])],
             created_at=str(payload.get("created_at") or utc_now_iso()),
         )
 

@@ -1,0 +1,24 @@
+schema_version: daily_return_operator_registry_v1
+data_contract_id: daily_ret_wide_v1
+input_observables: [RETURN_HISTORY]
+operators:
+  momentum_sum: {status: approved, minimum_window: 2, causal_availability: after_close_t}
+  reversal_sum: {status: approved, minimum_window: 2, causal_availability: after_close_t}
+  mean_return: {status: approved, minimum_window: 2, causal_availability: after_close_t}
+  volatility: {status: approved, minimum_window: 2, causal_availability: after_close_t}
+  downside_volatility: {status: approved, minimum_window: 2, causal_availability: after_close_t}
+  skewness: {status: approved, minimum_window: 3, causal_availability: after_close_t}
+  kurtosis: {status: approved, minimum_window: 4, causal_availability: after_close_t}
+  max_return: {status: approved, minimum_window: 2, causal_availability: after_close_t}
+  min_return: {status: approved, minimum_window: 2, causal_availability: after_close_t}
+  autocorrelation_lag1: {status: approved, minimum_window: 3, causal_availability: after_close_t}
+  market_residual_momentum: {status: approved, minimum_window: 2, causal_availability: after_close_t}
+blocked_inputs:
+  - volume
+  - turnover
+  - price
+  - market_cap
+  - industry
+  - fundamentals
+  - order_book
+  - order_flow
